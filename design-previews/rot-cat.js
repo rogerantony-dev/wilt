@@ -5,9 +5,9 @@ const smooth = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const ramp = (t, from, to) => smooth((t - from) / (to - from));
 function hex(c) { return '#' + c.map(v => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join(''); }
 function mix(a, b, k) { return hex([0, 1, 2].map(i => lerp(a[i], b[i], k))); }
-const FUR_FRESH = [0x33, 0x32, 0x2E], FUR_SICK = [0x3F, 0x4A, 0x36], FUR_ROT = [0x4C, 0x59, 0x3C];
+const FUR_FRESH = [0x33, 0x32, 0x2E], FUR_SICK = [0x44, 0x5E, 0x38], FUR_ROT = [0x5C, 0x7A, 0x40];
 const BONE = [0xE6, 0xE1, 0xD2], EYE = [0xF2, 0xF1, 0xEC];
-const MOLD = ['#6E8A3A', '#8FA13F', '#5B7534', '#A5B04A'];
+const MOLD = ['#8FB23C', '#B5C64A', '#6F9636', '#D0DC5A'];
 
 function stageName(t) {
   if (t >= 1) return 'Gone';
@@ -21,22 +21,22 @@ function stageName(t) {
 function cat(t, opts = {}) {
   const anim = opts.anim !== false;
   const over = t >= 1;
-  const sick = ramp(t, 0.25, 0.9);            // fur colour drift
-  const droop = ramp(t, 0.3, 0.95) * 26;       // ear droop degrees
-  const lid = ramp(t, 0.3, 0.85) * 0.5;        // eyelid coverage 0..0.5
-  const cloud = ramp(t, 0.6, 0.75);            // right eye clouds
+  const sick = ramp(t, 0.2, 0.7);             // fur colour drift, greens early
+  const droop = ramp(t, 0.25, 0.85) * 42;      // ear droop degrees, sags hard
+  const lid = ramp(t, 0.25, 0.75) * 0.55;      // eyelid coverage 0..0.55
+  const cloud = ramp(t, 0.5, 0.65);            // right eye clouds
   const mouthK = clamp(t / 0.9, 0, 1);         // smile -> frown
-  const skullK = ramp(t, 0.82, 1.0);           // bone patch growth
-  const rotK = ramp(t, 0.8, 1);
+  const skullK = ramp(t, 0.72, 1.0);           // bone patch growth, earlier and bigger
+  const rotK = ramp(t, 0.65, 1);
   const fur = over ? hex(BONE) : hex([0, 1, 2].map(i => lerp(lerp(FUR_FRESH[i], FUR_SICK[i], sick), FUR_ROT[i], rotK)));
   const face = over ? hex(BONE) : fur;
-  const xLeft = t >= 0.9, xRight = over;
+  const xLeft = t >= 0.84, xRight = over;
 
   // mould spots: [cx, cy, rx, ry, start, colorIndex]
   const spots = [
-    [88, 150, 9, 6, 0.55, 0], [172, 96, 7, 5, 0.6, 1], [70, 112, 6, 4, 0.66, 2],
-    [150, 170, 11, 7, 0.72, 3], [110, 190, 7, 4, 0.78, 0], [186, 150, 6, 6, 0.84, 1],
-    [104, 76, 8, 5, 0.9, 2],
+    [84, 152, 16, 11, 0.42, 0], [176, 94, 13, 9, 0.48, 1], [66, 110, 11, 8, 0.55, 2],
+    [152, 176, 19, 12, 0.6, 3], [110, 196, 13, 8, 0.66, 0], [190, 152, 11, 11, 0.72, 1],
+    [102, 74, 14, 9, 0.78, 2], [140, 120, 9, 7, 0.84, 3],
   ];
   const spotSvg = over ? '' : spots.map(([x, y, rx, ry, s, c]) => {
     const o = ramp(t, s, s + 0.08);
@@ -66,13 +66,13 @@ function cat(t, opts = {}) {
   };
 
   // mouth: smile -> flat -> frown -> open
-  const gape = ramp(t, 0.88, 1.0);
+  const gape = ramp(t, 0.8, 0.98);
   let mouth = '';
   if (over) {
     mouth = `<path d="M96 170 h64" stroke="#2A2A27" stroke-width="5" stroke-linecap="round"/>
       <g fill="#2A2A27"><rect x="104" y="166" width="7" height="12" rx="1"/><rect x="118" y="166" width="7" height="14" rx="1"/><rect x="132" y="166" width="7" height="14" rx="1"/><rect x="146" y="166" width="7" height="12" rx="1"/></g>`;
   } else {
-    const dy = lerp(8, -12, mouthK);            // control point: +smile, -frown
+    const dy = lerp(8, -20, mouthK);            // control point: +smile, -frown, deep
     const stroke = mix([0x38, 0xC7, 0x86], [0xD2, 0x54, 0x2F], ramp(t, 0.3, 0.8));
     const cute = 1 - ramp(t, 0.22, 0.4);        // the ω mouth gives way to a single line
     if (cute > 0) {
@@ -91,7 +91,7 @@ function cat(t, opts = {}) {
   // skull patch: a jagged opening top-right that grows until it is the whole head
   let patch = '';
   if (!over && skullK > 0) {
-    const r = lerp(14, 120, skullK);
+    const r = lerp(30, 150, skullK);
     patch = `<clipPath id="head${opts.id}"><circle cx="128" cy="128" r="80"/></clipPath>
       <g clip-path="url(#head${opts.id})">
         <path d="M ${168 - r * 0.2} ${74 - r * 0.1} l ${r * 0.35} ${-r * 0.1} l ${r * 0.2} ${r * 0.3} l ${-r * 0.1} ${r * 0.35} l ${-r * 0.4} ${r * 0.1} l ${-r * 0.25} ${-r * 0.35} z"
@@ -135,7 +135,7 @@ function cat(t, opts = {}) {
   if (anim && t >= 0.9) {
     extras += `<ellipse class="drop" cx="152" cy="178" rx="3.5" ry="5" fill="#8FA13F"/>`;
   }
-  const tear = (!over && t >= 0.9) ? `<path d="M182 92 q0 -14 6 -22 q6 8 6 22 a6 6 0 0 1 -12 0z" fill="#6FB3E6" opacity="${ramp(t, 0.9, 0.96)}"/>` : '';
+  const tear = (!over && t >= 0.8) ? `<path d="M182 92 q0 -14 6 -22 q6 8 6 22 a6 6 0 0 1 -12 0z" fill="#6FB3E6" opacity="${ramp(t, 0.8, 0.9)}"/>` : ''; 
 
   return `<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
     ${earL}${earR}

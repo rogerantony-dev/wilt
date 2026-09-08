@@ -104,6 +104,9 @@
 <h2>Stages the app would ship (6 frames)</h2>
 <div class="strip" id="strip"></div>
 
+<h2>At the sizes it ships: pill 30 dp, widget 76 dp</h2>
+<div id="sizes" style="display:flex;gap:28px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px"></div>
+
 <h2>In place</h2>
 <div class="contexts">
   <div class="phone">
@@ -150,6 +153,15 @@ stripFrames.forEach(([t, n, lab], i) => {
   d.className = 'card';
   d.innerHTML = `${cat(t, { anim: false, id: 's' + i })}<div class="t">${lab}</div><div class="n">${n}</div>`;
   strip.appendChild(d);
+});
+
+const sizes = document.getElementById('sizes');
+stripFrames.forEach(([t, n], i) => {
+  const d = document.createElement('div');
+  d.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--ash);font-size:12px';
+  d.innerHTML = `<div style="width:76px;height:76px">${cat(t, { anim: false, id: 'w' + i })}</div>
+    <div class="pill" style="position:static;transform:none"><span style="width:30px;height:30px;display:inline-block">${cat(t, { anim: false, id: 'p' + i })}</span><span class="time">${[3, 15, 21, 26, 28, 31][i]}m</span></div>${n}`;
+  sizes.appendChild(d);
 });
 
 const slider = document.getElementById('mins');
