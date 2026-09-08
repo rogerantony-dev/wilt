@@ -2,7 +2,7 @@
   "expo": {
     "name": "Wilt",
     "slug": "wilt",
-    "version": "1.9.5",
+    "version": "1.9.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.rogerantony.wilt",
-      "versionCode": 17,
+      "versionCode": 18,
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
