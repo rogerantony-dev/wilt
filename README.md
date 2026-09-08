@@ -124,7 +124,7 @@ Open Instagram Reels and the pill should appear within a second or two.
 
 ### Release build
 
-This is what the GitHub releases ship: a standalone APK with the JS bundled in, no Metro.
+This is what the GitHub releases ship: a standalone APK with the JS bundled in, no Metro. When `~/.wilt/upload.keystore` and `~/.wilt/upload.password` exist (the Play upload key, see `docs/play-listing.md`), `plugin/withReleaseSigning.js` signs the release build with that key, which is registered for Android developer verification; otherwise it falls back to the debug key, which is fine for your own device.
 
 ```bash
 npx expo prebuild --platform android

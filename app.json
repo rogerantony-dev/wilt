@@ -30,6 +30,7 @@
     "plugins": [
       "expo-dev-client",
       "./plugin/withReelCounter",
+      "./plugin/withReleaseSigning",
       [
         "expo-splash-screen",
         {
