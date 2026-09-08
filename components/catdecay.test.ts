@@ -56,14 +56,17 @@ describe("catHead", () => {
     const wilting = catHead(0.5);
     expect(wilting.blushOpacity).toBe(0);
     expect(wilting.cuteMouthOpacity).toBe(0);
-    expect(wilting.spots).toHaveLength(0);
+    expect(wilting.patchR).toBe(0);
+    expect(wilting.eyes[0].kind).toBe("open");
     const mouldy = catHead(0.72);
-    expect(mouldy.spots.length).toBeGreaterThan(0);
+    expect(mouldy.spots.length).toBeGreaterThan(wilting.spots.length);
+    expect(mouldy.patchR).toBe(0);
     const rotting = catHead(0.87);
     expect(rotting.patchR).toBeGreaterThan(0);
-    expect(rotting.eyes[0].kind).toBe("open");
+    expect(rotting.eyes[0].kind).toBe("x");
+    expect(rotting.eyes[1].kind).toBe("open");
     const nearlyGone = catHead(0.96);
-    expect(nearlyGone.eyes[0].kind).toBe("x");
+    expect(nearlyGone.patchR).toBeGreaterThan(rotting.patchR);
     expect(nearlyGone.eyes[1].kind).toBe("open");
   });
 

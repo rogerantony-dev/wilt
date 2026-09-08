@@ -12,15 +12,15 @@
 export type Rgb = [number, number, number];
 
 const FUR_FRESH: Rgb = [0x33, 0x32, 0x2e];
-const FUR_SICK: Rgb = [0x3f, 0x4a, 0x36];
-const FUR_ROT: Rgb = [0x4c, 0x59, 0x3c];
+const FUR_SICK: Rgb = [0x44, 0x5e, 0x38];
+const FUR_ROT: Rgb = [0x5c, 0x7a, 0x40];
 const BONE: Rgb = [0xe6, 0xe1, 0xd2];
 const EYE: Rgb = [0xf2, 0xf1, 0xec];
 const CLOUDY_EYE: Rgb = [0xb9, 0xc4, 0xb8];
 const GREEN: Rgb = [0x38, 0xc7, 0x86];
 const RED: Rgb = [0xd2, 0x54, 0x2f];
 const WHISKER_SICK: Rgb = [0x8a, 0x92, 0x84];
-const MOLD = ["#6E8A3A", "#8FA13F", "#5B7534", "#A5B04A"];
+const MOLD = ["#8FB23C", "#B5C64A", "#6F9636", "#D0DC5A"];
 
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
@@ -115,24 +115,25 @@ export type CatHeadModel = {
 export function catHead(tIn: number): CatHeadModel {
   const t = Math.max(0, tIn);
   const over = t >= 1;
-  const sick = ramp(t, 0.25, 0.9);
-  const rotK = ramp(t, 0.8, 1);
-  const droop = ramp(t, 0.3, 0.95) * 26;
-  const lid = ramp(t, 0.3, 0.85) * 0.5;
-  const cloud = ramp(t, 0.6, 0.75);
+  const sick = ramp(t, 0.2, 0.7);
+  const rotK = ramp(t, 0.65, 1);
+  const droop = ramp(t, 0.25, 0.85) * 42;
+  const lid = ramp(t, 0.25, 0.75) * 0.55;
+  const cloud = ramp(t, 0.5, 0.65);
   const mouthK = clamp(t / 0.9, 0, 1);
-  const skullK = ramp(t, 0.82, 1.0);
+  const skullK = ramp(t, 0.72, 1.0);
   const bead = ramp(t, 0.2, 0.75);
   const fur = over ? hex(BONE) : hex(mixRgb(mixRgb(FUR_FRESH, FUR_SICK, sick), FUR_ROT, rotK));
 
   const spotSpec: [number, number, number, number, number, number][] = [
-    [88, 150, 9, 6, 0.55, 0],
-    [172, 96, 7, 5, 0.6, 1],
-    [70, 112, 6, 4, 0.66, 2],
-    [150, 170, 11, 7, 0.72, 3],
-    [110, 190, 7, 4, 0.78, 0],
-    [186, 150, 6, 6, 0.84, 1],
-    [104, 76, 8, 5, 0.9, 2],
+    [84, 152, 16, 11, 0.42, 0],
+    [176, 94, 13, 9, 0.48, 1],
+    [66, 110, 11, 8, 0.55, 2],
+    [152, 176, 19, 12, 0.6, 3],
+    [110, 196, 13, 8, 0.66, 0],
+    [190, 152, 11, 11, 0.72, 1],
+    [102, 74, 14, 9, 0.78, 2],
+    [140, 120, 9, 7, 0.84, 3],
   ];
   const spots: Spot[] = over
     ? []
@@ -163,7 +164,7 @@ export function catHead(tIn: number): CatHeadModel {
     };
   };
 
-  const gape = ramp(t, 0.88, 1.0);
+  const gape = ramp(t, 0.8, 0.98);
   const cute = 1 - ramp(t, 0.22, 0.4);
 
   return {
@@ -177,17 +178,17 @@ export function catHead(tIn: number): CatHeadModel {
     whiskerOpacity: over ? 0 : lerp(0.85, 0.35, ramp(t, 0.3, 0.9)),
     whiskerStroke: mix(EYE, WHISKER_SICK, sick),
     spots,
-    patchR: !over && skullK > 0 ? lerp(14, 120, skullK) : 0,
+    patchR: !over && skullK > 0 ? lerp(30, 150, skullK) : 0,
     patchOpacity: 0.6 + 0.4 * skullK,
-    eyes: [eye(102, 128, t >= 0.9, 0), eye(154, 128, over, cloud)],
+    eyes: [eye(102, 128, t >= 0.84, 0), eye(154, 128, over, cloud)],
     nose: { fill: over ? "#2A2A27" : mix(GREEN, RED, ramp(t, 0.3, 0.7)) },
     cuteMouthOpacity: over ? 0 : cute,
     arcMouth: {
-      dy: lerp(8, -12, mouthK),
+      dy: lerp(8, -20, mouthK),
       stroke: mix(GREEN, RED, ramp(t, 0.3, 0.8)),
       opacity: over ? 0 : 1 - cute,
     },
     gape,
-    tearOpacity: !over && t >= 0.9 ? ramp(t, 0.9, 0.96) : 0,
+    tearOpacity: !over && t >= 0.8 ? ramp(t, 0.8, 0.9) : 0,
   };
 }
