@@ -236,9 +236,13 @@ both** and bump the date in each.
 - [ ] Run **closed testing**: 12+ testers opted in for 14 continuous days
 - [ ] Apply for production access, then promote once review passes
 
-Do not upload a locally built APK. `android/app/build.gradle` still signs the
-release buildType with the debug keystore, which is fine for sideloading and
-rejected by Play. The Play upload key is a separate keystore at
+Do not upload a locally built APK; Play wants the AAB from EAS. Local release
+builds are signed with the same upload key when it is present on the machine
+(`plugin/withReleaseSigning.js`), so the GitHub APKs stay installable on
+certified devices after the September 2026 developer-verification deadline.
+The upload key's fingerprint must be registered under Wilt in Play Console >
+Android developer verification (the three keys Google lists there are its own;
+add this one). The Play upload key is a separate keystore at
 `~/.wilt/upload.keystore` (password in `~/.wilt/upload.password`, alias
 `upload`), handed to EAS through `credentials.json` in the repo root, which is
 gitignored, with `credentialsSource: local` in `eas.json`. Back up both files
