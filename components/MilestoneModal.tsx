@@ -1,7 +1,7 @@
-import { Modal, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Animated, { SlideInDown } from "react-native-reanimated";
 import { C, Kicker } from "./console";
+import { Sheet } from "./Sheet";
 
 function fmtLimit(min: number): string {
   if (min < 60) return `${min}m`;
@@ -40,10 +40,8 @@ export function MilestoneModal({
       : "Your points earned you something better to look at than reels.";
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
-      <View className="flex-1 justify-end bg-black/60 p-4">
-        <Animated.View entering={SlideInDown.duration(200)}>
-          <View className="gap-5 rounded-[28px] bg-panel p-6">
+    <Sheet visible={visible} onDismiss={onDismiss}>
+          <View className="gap-5">
             <View className="gap-2">
               <View
                 className="h-[64px] w-[64px] items-center justify-center rounded-full"
@@ -89,8 +87,6 @@ export function MilestoneModal({
               </Pressable>
             )}
           </View>
-        </Animated.View>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
