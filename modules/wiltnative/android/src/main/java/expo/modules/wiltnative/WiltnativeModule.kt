@@ -249,14 +249,12 @@ class WiltnativeModule : Module() {
       val current = Settings.Secure.getString(
         resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
       ).orEmpty()
-      val entries = current.split(':').filter { it.isNotBlank() }
-      if (entries.none { it.equals(id, ignoreCase = true) }) {
-        Settings.Secure.putString(
-          resolver,
-          Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-          (entries + id).joinToString(":"),
-        )
-      }
+      // Off, then on, so the system really rebinds the service (a write with
+      // the service already listed can leave it "bound" but never connected).
+      val others = current.split(':').filter { it.isNotBlank() && !it.equals(id, ignoreCase = true) }
+      Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, others.joinToString(":"))
+      android.os.SystemClock.sleep(500)
+      Settings.Secure.putString(resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, (others + id).joinToString(":"))
       Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
       true
     }.getOrDefault(false)

@@ -13,6 +13,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 
@@ -176,17 +177,29 @@ object PaymentPause {
             val current = Settings.Secure.getString(
                 resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             ).orEmpty()
-            val entries = current.split(':').filter { it.isNotBlank() }
-            if (entries.none { it.equals(id, ignoreCase = true) }) {
-                val next = (entries + id).joinToString(":")
-                Settings.Secure.putString(
-                    resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, next
-                )
-            }
+            val others = current.split(':').filter { it.isNotBlank() && !it.equals(id, ignoreCase = true) }
+            // Off, then on. Writing the enabled list with the service already in
+            // it, or straight after a reinstall, has left the system believing the
+            // service was bound while it never connected (no heartbeat, no
+            // events); only a real off-and-on rebinds it. The short pause lets
+            // the accessibility manager see the removal as its own change.
+            Settings.Secure.putString(
+                resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, others.joinToString(":")
+            )
+            SystemClock.sleep(500)
+            Settings.Secure.putString(
+                resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, (others + id).joinToString(":")
+            )
             Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
             Log.i(TAG, "re-enabled accessibility service after payment pause")
             true
         }.onFailure { Log.w(TAG, "re-enable failed", it) }.getOrDefault(false)
+    }
+
+    /** Heartbeat the service writes in onServiceConnected; newer than the pause means it is back. */
+    fun reconnectedSincePause(context: Context): Boolean {
+        val p = prefs(context)
+        return p.getLong("lastConnectedAt", 0L) > p.getLong(PREF_AT, Long.MAX_VALUE)
     }
 
     /**
@@ -214,10 +227,26 @@ object PaymentPause {
      * Otherwise allow-while-idle, which is at least delivered eventually; a plain
      * set() from a background app is held indefinitely under Battery Saver.
      */
-    private fun scheduleAutoResume(context: Context) {
+    private const val VERIFY_AFTER_MS = 60 * 1000L
+    private const val MAX_RETRIES = 3
+    const val EXTRA_ATTEMPT = "attempt"
+
+    private fun scheduleAutoResume(context: Context) = scheduleResume(context, AUTO_RESUME_AFTER_MS, attempt = 0)
+
+    /**
+     * After a resume attempt, look again a minute later: if the service has
+     * not written its heartbeat since the pause, the rebind did not take and
+     * the attempt is repeated, up to [MAX_RETRIES] times.
+     */
+    fun scheduleVerify(context: Context, attempt: Int) {
+        if (attempt >= MAX_RETRIES) { Log.w(TAG, "auto-resume gave up after $attempt attempts"); return }
+        scheduleResume(context, VERIFY_AFTER_MS, attempt)
+    }
+
+    private fun scheduleResume(context: Context, delayMs: Long, attempt: Int) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val at = System.currentTimeMillis() + AUTO_RESUME_AFTER_MS
-        val pending = resumePendingIntent(context)
+        val at = System.currentTimeMillis() + delayMs
+        val pending = resumePendingIntent(context, attempt)
         val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarm.canScheduleExactAlarms()
         runCatching {
             if (exact) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
@@ -226,19 +255,20 @@ object PaymentPause {
             Log.w(TAG, "exact alarm refused, falling back", it)
             alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
         }
-        Log.d(TAG, "auto-resume scheduled in ${AUTO_RESUME_AFTER_MS / 60000} min, exact=$exact")
+        Log.d(TAG, "auto-resume scheduled in ${delayMs / 1000}s, attempt=$attempt, exact=$exact")
     }
 
     private fun cancelAutoResume(context: Context) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        alarm.cancel(resumePendingIntent(context))
+        alarm.cancel(resumePendingIntent(context, 0))
     }
 
-    private fun resumePendingIntent(context: Context): PendingIntent =
+    /** One pending intent for the whole chain, so a newer schedule replaces an older one. */
+    private fun resumePendingIntent(context: Context, attempt: Int): PendingIntent =
         PendingIntent.getBroadcast(
             context,
             RESUME_REQUEST,
-            Intent(context, PaymentResumeReceiver::class.java),
+            Intent(context, PaymentResumeReceiver::class.java).putExtra(EXTRA_ATTEMPT, attempt),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
@@ -307,8 +337,17 @@ object PaymentPause {
 class PaymentResumeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val paused = PaymentPause.pausedPackage(context)
-        Log.d("Wilt", "auto-resume alarm: paused=$paused")
-        if (paused == null) return
-        PaymentPause.enableService(context)
+        val attempt = intent?.getIntExtra(PaymentPause.EXTRA_ATTEMPT, 0) ?: 0
+        val back = PaymentPause.reconnectedSincePause(context)
+        Log.d("Wilt", "auto-resume alarm: paused=$paused attempt=$attempt reconnected=$back")
+        if (paused == null || back) return
+        val pending = goAsync()
+        Thread {
+            try {
+                if (PaymentPause.enableService(context)) PaymentPause.scheduleVerify(context, attempt + 1)
+            } finally {
+                pending.finish()
+            }
+        }.start()
     }
 }
