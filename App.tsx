@@ -3,7 +3,6 @@ import {
   AppState,
   BackHandler,
   Image,
-  Modal,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -15,7 +14,6 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import Animated, { SlideInDown } from "react-native-reanimated";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -41,6 +39,7 @@ import { computeProgress, type Progress } from "./components/progress";
 import { CATS, CAT_THRESHOLDS } from "./components/cats";
 import { ProgressStrip } from "./components/ProgressStrip";
 import { MilestoneModal } from "./components/MilestoneModal";
+import { Sheet } from "./components/Sheet";
 import { KitCatClock } from "./components/KitCatClock";
 import "./global.css";
 
@@ -628,10 +627,8 @@ function LimitPicker({
   onClose: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable className="flex-1 justify-end bg-black/60 p-4" onPress={onClose}>
-        <Animated.View entering={SlideInDown.duration(200)}>
-        <Pressable onPress={() => {}} className="gap-1.5 rounded-[28px] bg-panel p-6">
+    <Sheet visible={visible} onDismiss={onClose}>
+        <View className="gap-1.5">
           <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
           <Text className="text-[14px] leading-snug text-ash">
             Cross it and Wilt blocks the reels.
@@ -674,10 +671,8 @@ function LimitPicker({
               Lowering is instant. Raising takes effect at tomorrow's reset.
             </Text>
           )}
-        </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+        </View>
+    </Sheet>
   );
 }
 
@@ -753,15 +748,10 @@ function PushThroughModal({
   onGiveIn: () => void;
 }) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onKeepBlocking}
-    >
-      <View className="flex-1 justify-end bg-black/60 p-4">
-        <Animated.View entering={SlideInDown.duration(200)}>
-        <View className="gap-5 rounded-[28px] bg-panel p-6">
+    // A swipe down counts as "keep blocking"; the backdrop stays inert so the
+    // choice is deliberate rather than a stray tap.
+    <Sheet visible={visible} onDismiss={onKeepBlocking} dismissOnBackdrop={false}>
+        <View className="gap-5">
           <View className="gap-2">
             <Kicker>Leaving block mode</Kicker>
             <Text className="text-[24px] font-semibold text-bone" style={{ letterSpacing: -0.4 }}>
@@ -787,9 +777,7 @@ function PushThroughModal({
             </Pressable>
           </View>
         </View>
-        </Animated.View>
-      </View>
-    </Modal>
+    </Sheet>
   );
 }
 
