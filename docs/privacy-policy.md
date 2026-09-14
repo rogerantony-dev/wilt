@@ -62,8 +62,9 @@ the feed. This is why it is permitted to perform gestures.
 
 **Payment apps.** Some UPI and banking apps (Paytm, for example) refuse to make a
 payment while any third-party accessibility service is enabled on the phone. So
-when one of a fixed list of such apps opens, the service turns itself off and
-Wilt posts a notification saying so. Nothing is counted until you turn the
+when one of a fixed list of such apps opens, or any app that hides its screen
+from accessibility services, the service turns itself off and Wilt posts a
+notification saying so. Nothing is counted until you turn the
 service back on, which the app links you to. If you have granted Wilt Usage
 access, it reads the phone's recent app-switch events only to notice that you
 have left the payment app, so it can turn itself back on; nothing from that is

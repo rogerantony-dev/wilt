@@ -37,19 +37,54 @@ import android.util.Log
 object PaymentPause {
 
     /**
-     * Apps that refuse to run beside an enabled accessibility service: they
-     * put up a "suspicious app detected, remove it to continue" wall naming
-     * Wilt. Package to app label. Only apps seen doing that belong here; a
-     * pause costs the user their counting until Wilt is back on, so the many
-     * banking apps that merely hide their screen from accessibility services
-     * are deliberately not listed. Which apps block cannot be detected at
-     * runtime (the wall is on a hidden screen), so this list is the source.
+     * UPI and banking apps that block, or are likely to block, on an enabled
+     * accessibility service. Package to app label. Which apps block cannot be
+     * detected at runtime, so this list is the backstop for apps that do not
+     * hide their screen (see [HIDDEN_WINDOW]); a wrong package here is harmless.
      */
     val packages: Map<String, String> = linkedMapOf(
-        "net.one97.paytm" to "Paytm",               // verified on device
-        "com.phonepe.app" to "PhonePe",             // same wall, reported by users
-        "com.snapwork.hdfc" to "HDFC Bank",         // asked for by the user, 2026-09-04
+        // UPI and wallets
+        "net.one97.paytm" to "Paytm",
+        "com.phonepe.app" to "PhonePe",
+        "com.google.android.apps.nbu.paisa.user" to "Google Pay",
+        "in.org.npci.upiapp" to "BHIM",
+        "com.sbi.upi" to "BHIM SBI Pay",
+        "com.dreamplug.androidapp" to "CRED",
+        "com.mobikwik_new" to "MobiKwik",
+        "com.freecharge.android" to "Freecharge",
+        "com.enstage.wibmo.hdfc" to "PayZapp",
+        "indwin.c3.shareapp" to "slice",
+        "com.naviapp" to "Navi",
+        "money.jupiter" to "Jupiter",
+        "com.jupiter.money" to "Jupiter",
+        "com.epifi.paisa" to "Fi",
+        // Banks
+        "com.sbi.lotusintouch" to "YONO SBI",
+        "com.sbi.SBIFreedomPlus" to "YONO Lite SBI",
+        "com.snapwork.hdfc" to "HDFC Bank",
         "com.hdfcbank.android.now" to "HDFC Bank",
+        "com.csam.icici.bank.imobile" to "iMobile Pay",
+        "com.icicibank.pockets" to "Pockets",
+        "com.axis.mobile" to "Axis Mobile",
+        "com.msf.kbank.mobile" to "Kotak",
+        "com.bankofbaroda.mconnect" to "bob World",
+        "com.Version1" to "PNB ONE",
+        "com.canarabank.mobility" to "Canara ai1",
+        "com.idfcfirstbank.optimus" to "IDFC FIRST",
+        "com.fss.indus" to "IndusMobile",
+        "com.fss.unbi" to "Union Bank",
+        "com.unionbank.ecommerce.mobile.android" to "Vyom",
+        "com.fedmobile" to "FedMobile",
+        "com.infrasofttech.indianBank" to "IndOASIS",
+        "com.boi.ua.android" to "BOI Mobile",
+        "com.infrasofttech.CentralBank" to "Cent Mobile",
+        "com.yesbank" to "YES Mobile",
+        "com.snapwork.IDBI" to "IDBI Bank",
+        "com.rblbank.mobank" to "RBL MoBank",
+        "com.aubank.aubank" to "AU 0101",
+        "com.dbs.in.digitalbank" to "digibank",
+        "com.hsbc.hsbcindia" to "HSBC India",
+        "air.app.scb.breeze.android.main.in.prod" to "SC Mobile",
     )
 
     private const val TAG = "Wilt"
@@ -87,12 +122,13 @@ object PaymentPause {
         ComponentName(context, ReelAccessibilityService::class.java)
 
     /**
-     * Record the pause before the service disables itself. With the adb grants
+     * Record the pause before the service disables itself. [label] is what the
+     * user sees; it defaults to the list entry and otherwise to the window title
+     * of an app that hid its content (see [HIDDEN_WINDOW]). With the adb grants
      * in place this also arms the way back: the alarm always, and the
      * leave-the-app watch when Usage access allows it.
      */
-    fun markPaused(context: Context, pkg: String) {
-        val label = label(pkg)
+    fun markPaused(context: Context, pkg: String, label: String = label(pkg)) {
         prefs(context).edit()
             .putString(PREF_PACKAGE, pkg)
             .putString(PREF_LABEL, label)
@@ -101,8 +137,18 @@ object PaymentPause {
         notifyPaused(context, label)
         if (!canWriteSecureSettings(context)) return
         scheduleAutoResume(context)
-        if (PaymentWatchService.canWatch(context)) PaymentWatchService.start(context, pkg)
+        if (PaymentWatchService.canWatch(context)) PaymentWatchService.start(context, pkg, label)
     }
+
+    /**
+     * Pseudo package recorded when the pause was triggered not by the list but
+     * by an app hiding its screen from accessibility services. Android 14's
+     * accessibilityDataSensitive does exactly that for non-tool services, and
+     * the apps that use it are the security-minded ones that also refuse to run
+     * beside an enabled service, so the hidden screen itself is the signal.
+     * [PaymentWatchService] learns the real package from the usage log.
+     */
+    const val HIDDEN_WINDOW = "hidden-window"
 
     /** Both grants present: the service comes back as soon as the user leaves the app. */
     fun resumesOnLeave(context: Context): Boolean =

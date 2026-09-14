@@ -48,11 +48,15 @@ class PaymentWatchService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val pkg = intent?.getStringExtra(EXTRA_PACKAGE) ?: PaymentPause.pausedPackage(this)
-        if (pkg == null) { stopSelf(); return START_NOT_STICKY }
-        pausedPkg = pkg
+        val label = intent?.getStringExtra(EXTRA_LABEL) ?: pkg?.let { PaymentPause.label(it) }
+        if (pkg == null || label == null) { stopSelf(); return START_NOT_STICKY }
         since = System.currentTimeMillis()
+        // A pause triggered by a hidden screen carries no package, only a title,
+        // so the app to watch for leaving is whatever the usage log says came to
+        // the front most recently. Fall back to the given package.
+        pausedPkg = foregroundPackage(since - RECENT_MS) ?: pkg
         done = false
-        val notification = PaymentPause.pausedNotification(this, PaymentPause.label(pkg))
+        val notification = PaymentPause.pausedNotification(this, label)
         if (notification == null) { stopSelf(); return START_NOT_STICKY }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
@@ -65,7 +69,7 @@ class PaymentWatchService : Service() {
         handler.removeCallbacksAndMessages(null)
         handler.post(tick)
         handler.postDelayed(timeout, MAX_MS)
-        Log.d(TAG, "watching for the user to leave $pkg")
+        Log.d(TAG, "watching for the user to leave $pausedPkg")
         return START_NOT_STICKY
     }
 
@@ -117,7 +121,9 @@ class PaymentWatchService : Service() {
     companion object {
         private const val TAG = "Wilt"
         private const val EXTRA_PACKAGE = "package"
+        private const val EXTRA_LABEL = "label"
         private const val POLL_MS = 1000L
+        private const val RECENT_MS = 15 * 1000L
         private const val MAX_MS = 170 * 1000L
 
         /** Usage access granted, in Settings or over adb. */
@@ -137,8 +143,10 @@ class PaymentWatchService : Service() {
         }
 
         /** Start watching; false when the system refused (the alarm still covers the pause). */
-        fun start(context: Context, pkg: String): Boolean {
-            val intent = Intent(context, PaymentWatchService::class.java).putExtra(EXTRA_PACKAGE, pkg)
+        fun start(context: Context, pkg: String, label: String): Boolean {
+            val intent = Intent(context, PaymentWatchService::class.java)
+                .putExtra(EXTRA_PACKAGE, pkg)
+                .putExtra(EXTRA_LABEL, label)
             return runCatching {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
                 else context.startService(intent)
