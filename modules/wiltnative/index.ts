@@ -37,6 +37,8 @@ export type WiltStatus = {
   paymentPauseApp: string | null;
   /** WRITE_SECURE_SETTINGS was granted over adb, so the app can re-enable itself. */
   canAutoResume: boolean;
+  /** Usage access is granted too, so a pause ends the moment the payment app is left. */
+  resumesOnLeave: boolean;
 };
 
 export type WiltDay = {

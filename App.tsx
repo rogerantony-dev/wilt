@@ -304,6 +304,7 @@ export default function App() {
           <PaymentPauseScreen
             app={paymentPauseApp}
             canAutoResume={status?.canAutoResume === true}
+            resumesOnLeave={status?.resumesOnLeave === true}
             onResume={resumeFromPause}
             onDismiss={dismissPause}
           />

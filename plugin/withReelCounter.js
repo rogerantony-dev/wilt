@@ -85,10 +85,15 @@ function withReelCounterManifest(config) {
     // to Settings. Declaring it is harmless without the grant.
     // SCHEDULE_EXACT_ALARM: lets the resume alarm fire on time under Battery
     // Saver; off by default, granted in Settings (Alarms and reminders) or adb.
+    // PACKAGE_USAGE_STATS + FOREGROUND_SERVICE: the short foreground watch that
+    // turns the service back on the moment the user leaves the payment app.
+    // Usage access is granted in Settings (Special app access) or over adb.
     for (const name of [
       "android.permission.POST_NOTIFICATIONS",
       "android.permission.WRITE_SECURE_SETTINGS",
       "android.permission.SCHEDULE_EXACT_ALARM",
+      "android.permission.PACKAGE_USAGE_STATS",
+      "android.permission.FOREGROUND_SERVICE",
     ]) {
       if (!permissions.some((p) => p.$["android:name"] === name)) {
         permissions.push({ $: { "android:name": name } });
@@ -130,6 +135,21 @@ function withReelCounterManifest(config) {
             },
           },
         ],
+      });
+    }
+
+    // The payment watch: a short foreground service (Android 14's shortService
+    // type needs no extra permission and is capped at a few minutes).
+    const watchDeclared = application.service.some(
+      (s) => s.$["android:name"] === ".PaymentWatchService"
+    );
+    if (!watchDeclared) {
+      application.service.push({
+        $: {
+          "android:name": ".PaymentWatchService",
+          "android:exported": "false",
+          "android:foregroundServiceType": "shortService",
+        },
       });
     }
 

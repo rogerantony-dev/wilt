@@ -30,60 +30,26 @@ import android.util.Log
  * on is normally the user's job (Android gives an app no way to re-enable its
  * own service), which the app makes a one-tap trip to the right settings
  * screen. On a phone where WRITE_SECURE_SETTINGS has been granted over adb,
- * Wilt re-enables itself: at once from the app, and from an alarm four
- * minutes after the pause so a forgotten pause does not last all day.
+ * Wilt re-enables itself: at once from the app, the moment the user leaves
+ * the payment app when Usage access is granted too ([PaymentWatchService]),
+ * and from an alarm four minutes after the pause as the backstop.
  */
 object PaymentPause {
 
     /**
-     * UPI and banking apps that block, or are likely to block, on an enabled
-     * accessibility service. Package to app label. Which apps block cannot be
-     * detected at runtime, so this list is the backstop for apps that do not
-     * hide their screen (see [HIDDEN_WINDOW]); a wrong package here is harmless.
+     * Apps that refuse to run beside an enabled accessibility service: they
+     * put up a "suspicious app detected, remove it to continue" wall naming
+     * Wilt. Package to app label. Only apps seen doing that belong here; a
+     * pause costs the user their counting until Wilt is back on, so the many
+     * banking apps that merely hide their screen from accessibility services
+     * are deliberately not listed. Which apps block cannot be detected at
+     * runtime (the wall is on a hidden screen), so this list is the source.
      */
     val packages: Map<String, String> = linkedMapOf(
-        // UPI and wallets
-        "net.one97.paytm" to "Paytm",
-        "com.phonepe.app" to "PhonePe",
-        "com.google.android.apps.nbu.paisa.user" to "Google Pay",
-        "in.org.npci.upiapp" to "BHIM",
-        "com.sbi.upi" to "BHIM SBI Pay",
-        "com.dreamplug.androidapp" to "CRED",
-        "com.mobikwik_new" to "MobiKwik",
-        "com.freecharge.android" to "Freecharge",
-        "com.enstage.wibmo.hdfc" to "PayZapp",
-        "indwin.c3.shareapp" to "slice",
-        "com.naviapp" to "Navi",
-        "money.jupiter" to "Jupiter",
-        "com.jupiter.money" to "Jupiter",
-        "com.epifi.paisa" to "Fi",
-        // Banks
-        "com.sbi.lotusintouch" to "YONO SBI",
-        "com.sbi.SBIFreedomPlus" to "YONO Lite SBI",
-        "com.snapwork.hdfc" to "HDFC Bank",
+        "net.one97.paytm" to "Paytm",               // verified on device
+        "com.phonepe.app" to "PhonePe",             // same wall, reported by users
+        "com.snapwork.hdfc" to "HDFC Bank",         // asked for by the user, 2026-09-04
         "com.hdfcbank.android.now" to "HDFC Bank",
-        "com.csam.icici.bank.imobile" to "iMobile Pay",
-        "com.icicibank.pockets" to "Pockets",
-        "com.axis.mobile" to "Axis Mobile",
-        "com.msf.kbank.mobile" to "Kotak",
-        "com.bankofbaroda.mconnect" to "bob World",
-        "com.Version1" to "PNB ONE",
-        "com.canarabank.mobility" to "Canara ai1",
-        "com.idfcfirstbank.optimus" to "IDFC FIRST",
-        "com.fss.indus" to "IndusMobile",
-        "com.fss.unbi" to "Union Bank",
-        "com.unionbank.ecommerce.mobile.android" to "Vyom",
-        "com.fedmobile" to "FedMobile",
-        "com.infrasofttech.indianBank" to "IndOASIS",
-        "com.boi.ua.android" to "BOI Mobile",
-        "com.infrasofttech.CentralBank" to "Cent Mobile",
-        "com.yesbank" to "YES Mobile",
-        "com.snapwork.IDBI" to "IDBI Bank",
-        "com.rblbank.mobank" to "RBL MoBank",
-        "com.aubank.aubank" to "AU 0101",
-        "com.dbs.in.digitalbank" to "digibank",
-        "com.hsbc.hsbcindia" to "HSBC India",
-        "air.app.scb.breeze.android.main.in.prod" to "SC Mobile",
     )
 
     private const val TAG = "Wilt"
@@ -93,7 +59,7 @@ object PaymentPause {
     const val PREF_AT = "paymentPausedAt"
 
     private const val CHANNEL_ID = "wilt_payment_pause"
-    private const val NOTIFICATION_ID = 7031
+    const val NOTIFICATION_ID = 7031
     private const val RESUME_REQUEST = 7032
     private const val AUTO_RESUME_AFTER_MS = 4 * 60 * 1000L
 
@@ -121,28 +87,26 @@ object PaymentPause {
         ComponentName(context, ReelAccessibilityService::class.java)
 
     /**
-     * Record the pause before the service disables itself. [label] is what the
-     * user sees; it defaults to the list entry and otherwise to the window title
-     * of an app that hid its content (see [HIDDEN_WINDOW]).
+     * Record the pause before the service disables itself. With the adb grants
+     * in place this also arms the way back: the alarm always, and the
+     * leave-the-app watch when Usage access allows it.
      */
-    fun markPaused(context: Context, pkg: String, label: String = label(pkg)) {
+    fun markPaused(context: Context, pkg: String) {
+        val label = label(pkg)
         prefs(context).edit()
             .putString(PREF_PACKAGE, pkg)
             .putString(PREF_LABEL, label)
             .putLong(PREF_AT, System.currentTimeMillis())
             .apply()
         notifyPaused(context, label)
-        if (canWriteSecureSettings(context)) scheduleAutoResume(context)
+        if (!canWriteSecureSettings(context)) return
+        scheduleAutoResume(context)
+        if (PaymentWatchService.canWatch(context)) PaymentWatchService.start(context, pkg)
     }
 
-    /**
-     * Pseudo package recorded when the pause was triggered not by the list but
-     * by an app hiding its screen from accessibility services. Android 14's
-     * accessibilityDataSensitive does exactly that for non-tool services, and
-     * the apps that use it are the security-minded ones that also refuse to run
-     * beside an enabled service, so the hidden screen itself is the signal.
-     */
-    const val HIDDEN_WINDOW = "hidden-window"
+    /** Both grants present: the service comes back as soon as the user leaves the app. */
+    fun resumesOnLeave(context: Context): Boolean =
+        canWriteSecureSettings(context) && PaymentWatchService.canWatch(context)
 
     /** The service is back on: forget the pause and its reminders. */
     fun clearPaused(context: Context) {
@@ -150,6 +114,13 @@ object PaymentPause {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
             ?.cancel(NOTIFICATION_ID)
         cancelAutoResume(context)
+        PaymentWatchService.stop(context)
+    }
+
+    /** Turn the service back on now and verify it took, like the alarm does. */
+    fun resumeNow(context: Context, reason: String) {
+        Log.i(TAG, "resuming after payment pause: $reason")
+        if (enableService(context)) scheduleVerify(context, attempt = 1)
     }
 
     fun pausedPackage(context: Context): String? = prefs(context).getString(PREF_PACKAGE, null)
@@ -282,6 +253,14 @@ object PaymentPause {
     private fun notifyPaused(context: Context, appLabel: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             ?: return
+        val notification = pausedNotification(context, appLabel) ?: return
+        runCatching { manager.notify(NOTIFICATION_ID, notification) }
+    }
+
+    /** The pause notification; also what [PaymentWatchService] runs in the foreground under. */
+    fun pausedNotification(context: Context, appLabel: String): Notification? {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            ?: return null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
                 NotificationChannel(
@@ -295,7 +274,7 @@ object PaymentPause {
         }
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
             ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
-            ?: return
+            ?: return null
         val tap = PendingIntent.getActivity(
             context,
             NOTIFICATION_ID,
@@ -303,7 +282,9 @@ object PaymentPause {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val auto = canWriteSecureSettings(context)
-        val body = if (auto) {
+        val body = if (auto && PaymentWatchService.canWatch(context)) {
+            "$appLabel blocks payments while Wilt is on. It comes back on its own as soon as you leave $appLabel, or tap to turn it on now."
+        } else if (auto) {
             "$appLabel blocks payments while Wilt is on. It comes back on its own in 4 minutes, or tap to turn it on now."
         } else {
             "$appLabel blocks payments while Wilt is on. Tap to turn it back on when you are done."
@@ -314,7 +295,7 @@ object PaymentPause {
             @Suppress("DEPRECATION")
             Notification.Builder(context)
         }
-        val notification = builder
+        return builder
             .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
             .setContentTitle("Wilt paused for $appLabel")
             .setContentText(body)
@@ -323,7 +304,6 @@ object PaymentPause {
             .setAutoCancel(true)
             .setOngoing(!auto)
             .build()
-        runCatching { manager.notify(NOTIFICATION_ID, notification) }
     }
 }
 

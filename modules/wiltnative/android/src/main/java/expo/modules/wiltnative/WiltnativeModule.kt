@@ -43,6 +43,7 @@ class WiltnativeModule : Module() {
         "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
         "paymentPauseApp" to paymentPauseApp(context),
         "canAutoResume" to canWriteSecureSettings(context),
+        "resumesOnLeave" to (canWriteSecureSettings(context) && canReadUsage(context)),
       )
     }
 
@@ -166,6 +167,7 @@ class WiltnativeModule : Module() {
     "lastPointsCelebrated" to 0,
     "paymentPauseApp" to null,
     "canAutoResume" to false,
+    "resumesOnLeave" to false,
   )
 
   private fun prefs(context: Context) =
@@ -234,6 +236,22 @@ class WiltnativeModule : Module() {
   private fun paymentPauseApp(context: Context): String? {
     if (isAccessibilityEnabled(context)) return null
     return prefs(context).getString("paymentPauseLabel", null)
+  }
+
+  /** Usage access (PACKAGE_USAGE_STATS), which lets the pause end the moment the payment app is left. */
+  private fun canReadUsage(context: Context): Boolean {
+    val ops = context.getSystemService(Context.APP_OPS_SERVICE) as? android.app.AppOpsManager ?: return false
+    val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+      ops.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    } else {
+      @Suppress("DEPRECATION")
+      ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    }
+    return mode == android.app.AppOpsManager.MODE_ALLOWED || (
+      mode == android.app.AppOpsManager.MODE_DEFAULT &&
+        context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+      )
   }
 
   private fun canWriteSecureSettings(context: Context): Boolean =

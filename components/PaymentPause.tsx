@@ -15,11 +15,13 @@ import { Brand, C } from "./console";
 export function PaymentPauseScreen({
   app,
   canAutoResume,
+  resumesOnLeave,
   onResume,
   onDismiss,
 }: {
   app: string;
   canAutoResume: boolean;
+  resumesOnLeave: boolean;
   onResume: () => void;
   onDismiss: () => void;
 }) {
@@ -44,9 +46,11 @@ export function PaymentPauseScreen({
           when {app} opened. Nothing was counted since.
         </Text>
         <Text className="mt-3 text-[15px] leading-relaxed text-ash" style={{ maxWidth: 320 }}>
-          {canAutoResume
-            ? "Tap below to turn it back on. It also comes back on its own about four minutes after the pause."
-            : "To turn it back on, open Accessibility settings, go to Installed apps (Downloaded apps on some phones), pick Wilt Reel Counter, and switch it on."}
+          {resumesOnLeave
+            ? `Tap below to turn it back on. It also comes back on its own as soon as you leave ${app}.`
+            : canAutoResume
+              ? "Tap below to turn it back on. It also comes back on its own about four minutes after the pause."
+              : "To turn it back on, open Accessibility settings, go to Installed apps (Downloaded apps on some phones), pick Wilt Reel Counter, and switch it on."}
         </Text>
       </View>
       <Pressable
