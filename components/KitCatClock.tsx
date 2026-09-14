@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 import Animated, {
   Easing,
@@ -14,6 +14,7 @@ import { decayStage, stageT } from "./catdecay";
 import { rotateAbout, translateX } from "./catmatrix";
 import { C } from "./console";
 import { timeLeftState } from "./timeleft";
+import { useMountEffect } from "./useMountEffect";
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 
@@ -21,11 +22,6 @@ const AnimatedG = Animated.createAnimatedComponent(G);
 const FUR = "#2A2A27";
 const FACE = "#201F1D";
 
-/** Mount-only effect, mirroring App.tsx's helper so views never call useEffect raw. */
-function useMountEffect(effect: () => void) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(effect, []);
-}
 
 // The head is drawn in CatHead's 256-box (r=80 at 128,128) and scaled onto the
 // clock so that it sits at r=34 around (75,48), the same spot the old head had.

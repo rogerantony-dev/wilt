@@ -1,20 +1,16 @@
-import { useRef } from "react";
 import {
-  Animated,
   Image,
-  Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { CATS } from "./cats";
 import { C } from "./console";
+import { TallSheet } from "./TallSheet";
 
 const GAP = 12;
 const PAGE_PADDING = 20;
@@ -29,42 +25,13 @@ export function CatGallery({
   onClose: () => void;
   unlockedCount: number;
 }) {
-  const { width, height: screenH } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const tile = (width - PAGE_PADDING * 2 - GAP) / 2;
 
-  const dismissRef = useRef(screenH);
-  dismissRef.current = screenH;
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const pan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_, g) => {
-        if (g.dy > 0) translateY.setValue(g.dy);
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dy > 130 || g.vy > 0.8) {
-          Animated.timing(translateY, {
-            toValue: dismissRef.current,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            closeRef.current();
-            translateY.setValue(0);
-          });
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
-        }
-      },
-    })
-  ).current;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
-        <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
-        <View {...pan.panHandlers} className="px-6 pb-1 pt-2">
+    <TallSheet visible={visible} onClose={onClose}>
+        <View className="px-6 pb-1 pt-2">
           <View
             style={{
               alignSelf: "center",
@@ -141,8 +108,6 @@ export function CatGallery({
             </View>
           </ScrollView>
         )}
-        </SafeAreaView>
-      </Animated.View>
-    </Modal>
+    </TallSheet>
   );
 }

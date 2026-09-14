@@ -1,23 +1,18 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
-  Animated,
   Linking,
-  Modal,
-  PanResponder,
   Pressable,
   ScrollView,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Line, Rect } from "react-native-svg";
 
 import { C, Kicker, Segmented } from "./console";
 import { buildView, type HistoryRange } from "./history";
 import { getHistory } from "../modules/wiltnative";
+import { TallSheet } from "./TallSheet";
 
 type Metric = "time" | "count";
 
@@ -104,44 +99,9 @@ export function HistoryScreen({
       : String(busiest.count + busiest.shorts)
     : "—";
 
-  // Swipe the header down to dismiss (native-driver translateY; the ScrollView
-  // below keeps its own scroll since the pan lives only on the header).
-  const { height: screenH } = useWindowDimensions();
-  const dismissRef = useRef(screenH);
-  dismissRef.current = screenH;
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  const translateY = useRef(new Animated.Value(0)).current;
-  const pan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
-      onPanResponderMove: (_, g) => {
-        if (g.dy > 0) translateY.setValue(g.dy);
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dy > 130 || g.vy > 0.8) {
-          Animated.timing(translateY, {
-            toValue: dismissRef.current,
-            duration: 200,
-            useNativeDriver: true,
-          }).start(() => {
-            closeRef.current();
-            translateY.setValue(0);
-          });
-        } else {
-          Animated.spring(translateY, { toValue: 0, useNativeDriver: true }).start();
-        }
-      },
-    })
-  ).current;
-
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Animated.View style={{ flex: 1, transform: [{ translateY }] }} className="bg-ink">
-        <SafeAreaView className="flex-1">
-          <StatusBar style="light" />
-
-          <View {...pan.panHandlers} className="px-6 pb-1 pt-2">
+    <TallSheet visible={visible} onClose={onClose}>
+          <View className="px-6 pb-1 pt-2">
             <View
               style={{
                 alignSelf: "center",
@@ -239,9 +199,7 @@ export function HistoryScreen({
             </View>
           </View>
         </ScrollView>
-      </SafeAreaView>
-      </Animated.View>
-    </Modal>
+    </TallSheet>
   );
 }
 
