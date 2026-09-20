@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wilt kit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{--ink:#0D0D0C;--panel:#1A1A18;--panelhi:#2C2C29;--bone:#F2F1EC;--ash:#9A9A92;--dim:#62625B;--hair:rgba(242,241,236,.10);--green:#38C786;--amber:#E0913C;--red:#D2542F;--board:#171716;
+    --glass:rgba(242,241,236,.06);--glassb:rgba(242,241,236,.10);--scrim:rgba(0,0,0,.62);
+    --sans:-apple-system,"SF Pro Display","SF Pro Text",Roboto,"Segoe UI",system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--board);color:var(--bone);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .bar{padding:36px 40px 6px}.bar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}.bar p{margin:6px 0 0;color:var(--ash);max-width:80ch}
+  .rail{display:flex;flex-wrap:wrap;align-items:flex-start;gap:44px 34px;padding:20px 40px 30px}
+  .slot{flex:0 0 390px;width:390px;display:block}.cap{display:block;width:390px;margin-top:14px;font-size:12px;color:var(--ash)}
+  .cap b{display:block;color:var(--bone);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:4px}
+  .phone{width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--ink);box-shadow:0 30px 70px rgba(0,0,0,.45),0 0 0 10px #101010,0 0 0 12px #2a2a27}
+  .scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:58px 22px 24px}
+  .scr > *:not(.field){position:relative}
+  .top{display:flex;align-items:center;justify-content:space-between;height:28px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px}.brand i{width:7px;height:7px;border-radius:50%;background:var(--green)}
+  .field{position:absolute;left:-40%;right:-40%;bottom:-38%;height:90%;border-radius:50%;pointer-events:none;background:radial-gradient(ellipse at 50% 100%,rgba(56,199,134,.42),rgba(56,199,134,.14) 45%,rgba(56,199,134,0) 70%)}
+  .field.a{background:radial-gradient(ellipse at 50% 100%,rgba(224,145,60,.42),rgba(224,145,60,.14) 45%,rgba(224,145,60,0) 70%)}
+
+  /* THE KIT */
+  .btn{height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:16px}
+  .btn.primary{background:var(--bone);color:var(--ink)}
+  .btn.glass{background:var(--glass);border:1px solid var(--glassb);color:var(--bone)}
+  .btn.accent{background:var(--green);color:var(--ink)}
+  .btn.ghost{background:transparent;color:var(--dim);height:44px;font-size:15px;font-weight:500}
+  .btn.sm{height:44px;font-size:14px;border-radius:14px}
+  .tile{background:var(--glass);border:1px solid var(--glassb);border-radius:16px}
+  .seg{display:flex;padding:4px;border-radius:16px;background:var(--panel)}
+  .seg div{flex:1;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:15px;color:var(--ash)}
+  .seg div.on{background:var(--panelhi);color:var(--bone)}.seg div.on.g{background:var(--green);color:var(--ink)}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--glass);border:1px solid var(--glassb);font-size:12.5px;color:var(--ash)}.chip b{color:var(--bone)}
+  .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);font-weight:600}
+
+  /* sheet */
+  .scrim{position:absolute;inset:0;background:var(--scrim)}
+  .sheet{position:absolute;left:0;right:0;bottom:0;border-radius:28px 28px 0 0;background:#161615;border-top:1px solid var(--glassb);padding:10px 22px 26px}
+  .grab{width:40px;height:5px;border-radius:3px;background:var(--panelhi);margin:0 auto 14px}
+  .sheet h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.4px}
+  .sheet p{margin:4px 0 0;color:var(--ash);font-size:14px}
+  .stack{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+  .slider{height:32px;border-radius:16px;background:var(--panelhi);position:relative;margin-top:14px}
+  .slider .fill{position:absolute;left:0;top:0;bottom:0;width:60%;border-radius:16px;background:var(--amber)}
+  .slider .thumb{position:absolute;left:calc(60% - 16px);top:0;width:32px;height:32px;border-radius:16px;background:var(--amber);box-shadow:inset 0 0 0 4px var(--amber)}
+  .slider .thumb::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--bone)}
+  .rungs{display:flex;justify-content:space-between;padding:8px 8px 0;font-size:11px;color:var(--dim)}.rungs b{color:var(--bone)}
+  .bignum{font-size:54px;line-height:56px;font-weight:700;letter-spacing:-2px;color:var(--amber);margin-top:14px}.bignum span{font-size:14px;color:var(--ash);font-weight:400;letter-spacing:0;margin-left:8px}
+  .note{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:rgba(224,145,60,.08);border:1px solid rgba(224,145,60,.3);font-size:12.5px;color:var(--ash);margin-top:14px}.note b{color:var(--bone)}
+  .disc{width:64px;height:64px;border-radius:50%;background:rgba(56,199,134,.14);display:flex;align-items:center;justify-content:center;color:var(--green);font-size:26px}
+
+  /* onboarding */
+  .ob .copy h1{margin:0;font-size:32px;line-height:36px;font-weight:700;letter-spacing:-.8px}.ob .copy p{margin:8px 0 0;color:var(--ash);font-size:15px}
+  .row{border-radius:22px;padding:16px;border:1.5px solid var(--glassb);background:var(--glass)}
+  .row.on{border-color:var(--amber);background:rgba(224,145,60,.06)}
+  .row.on.g{border-color:var(--green);background:rgba(56,199,134,.06)}
+  .rh{display:flex;align-items:center;gap:14px}.rh h3{margin:0;font-size:19px;font-weight:600}.rh p{margin:3px 0 0;font-size:13px;color:var(--ash)}
+  .mini{width:68px;height:92px;border-radius:12px;background:#141413;border:1px solid var(--glassb);flex:none;display:flex;align-items:center;justify-content:center;color:var(--green);font-size:9px;font-weight:700}
+  .radio{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--dim);flex:none;display:grid;place-items:center}.radio.on{border-color:var(--amber)}.radio.on::after{content:"";width:11px;height:11px;border-radius:50%;background:var(--amber)}
+  .dots{display:flex;justify-content:center;gap:7px;margin:auto 0 16px}.dots i{width:7px;height:7px;border-radius:4px;background:var(--panelhi)}.dots i.on{width:26px;background:var(--bone)}
+  .perm{display:flex;align-items:center;gap:16px;padding:16px;border-radius:18px;background:var(--glass);border:1px solid var(--glassb)}
+  .perm h4{margin:0;font-size:16px;font-weight:600}.perm p{margin:3px 0 0;font-size:13px;color:var(--ash)}
+  .sw{width:48px;height:28px;border-radius:14px;background:var(--panelhi);position:relative;flex:none}.sw::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--bone)}
+  .sw.on{background:var(--green)}.sw.on::after{left:23px}
+  .notes{padding:8px 40px 60px;color:var(--ash);max-width:82ch}.notes h2{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:26px 0 10px}.notes li{margin:7px 0}.notes b{color:var(--bone);font-weight:600}
+  .kit{display:grid;grid-template-columns:repeat(4,200px);gap:14px;padding:10px 40px 20px}
+  .kit .c{background:var(--ink);border-radius:20px;padding:16px;box-shadow:0 0 0 1px #262624}
+  .kit .c .k{margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>One kit for buttons and surfaces</h1>
+  <p>The dashboard's glass (bone at 6% with a 10% hairline) becomes the secondary surface everywhere. Four button levels, one radius, one height. Below, every sheet and both onboarding pages rebuilt on it.</p>
+</div>
+<div class="kit">
+  <div class="c"><div class="k">Primary · one per screen</div><div class="btn primary">Continue</div></div>
+  <div class="c"><div class="k">Glass · secondary</div><div class="btn glass">🐾 Cats</div></div>
+  <div class="c"><div class="k">Accent · the safe choice</div><div class="btn accent">Keep blocking</div></div>
+  <div class="c"><div class="k">Ghost · the quiet way out</div><div class="btn ghost">I'll give in</div></div>
+  <div class="c"><div class="k">Tile</div><div class="tile" style="padding:12px 14px"><b style="font-size:22px">3</b><div class="k">days clean</div></div></div>
+  <div class="c"><div class="k">Chip</div><span class="chip">Limit <b>30m</b> ⌄</span></div>
+  <div class="c"><div class="k">Island</div><div class="seg"><div class="on">Guilt</div><div>Block</div></div></div>
+  <div class="c"><div class="k">Sheet surface</div><div style="height:56px;border-radius:16px 16px 0 0;background:#161615;border:1px solid var(--glassb);border-bottom:0"><div class="grab" style="margin-top:8px"></div></div></div>
+</div>
+
+<div class="rail">
+
+  <!-- Limit sheet -->
+  <div class="slot">
+    <div class="phone"><div class="scr"><div class="field a"></div><div class="top"><div class="brand"><i></i>Wilt</div><span class="chip">Limit <b>15m</b> ⌄</span></div></div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <h2>Daily limit</h2><p>Cross it and Wilt blocks the reels.</p>
+        <div class="bignum">30<span>minutes</span></div>
+        <div class="slider"><div class="fill"></div><div class="thumb"></div></div>
+        <div class="rungs"><span>5</span><span>10</span><span>15</span><b>30</b><span>45</span><span>1h</span></div>
+        <div class="note">⏳ <span><b>30m</b> starts tomorrow. Today stays at 15m.</span></div>
+        <div class="stack"><div class="btn primary">Raise to 30m tomorrow</div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Limit sheet</b>Same as now, on the new surface: sheet body one step above ink with a hairline top edge, the note as a tinted glass card, one primary button.</div>
+  </div>
+
+  <!-- Push-through -->
+  <div class="slot">
+    <div class="phone"><div class="scr"><div class="field"></div><div class="top"><div class="brand"><i></i>Wilt</div><span class="chip">Limit <b>30m</b> ⌄</span></div></div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="k">Leaving block mode</div>
+        <h2 style="margin-top:6px">Going soft already?</h2>
+        <p>You're in Block mode and the reels can't touch you. Switch back and you're choosing to feed the addiction. Why not just push through?</p>
+        <div class="stack"><div class="btn accent">Keep blocking</div><div class="btn ghost">I'll give in</div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Push-through</b>Accent for the choice we want, ghost for the way out. No borders, no second card.</div>
+  </div>
+
+  <!-- Milestone -->
+  <div class="slot">
+    <div class="phone"><div class="scr"><div class="field"></div><div class="top"><div class="brand"><i></i>Wilt</div><span class="chip">Limit <b>30m</b> ⌄</span></div></div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="disc">🔥</div>
+        <div class="k" style="color:var(--green);margin-top:12px">Streak milestone</div>
+        <h2 style="margin-top:4px">7 days clean.</h2>
+        <p>A full week under your limit. That is a real habit forming.</p>
+        <div class="tile" style="padding:14px;margin-top:16px;font-size:14px">Ready for less? Drop your limit from <b>30m</b> to <b>15m</b> and earn more per clean day.</div>
+        <div class="stack"><div class="btn accent">Lower to 15m</div><div class="btn ghost">Keep 30m for now</div></div>
+      </div>
+    </div>
+    <div class="cap"><b>Milestone</b>The offer sits in a glass tile, the two actions are the same accent and ghost pair as the push-through sheet.</div>
+  </div>
+
+  <!-- Onboarding mode page -->
+  <div class="slot">
+    <div class="phone ob"><div class="scr"><div class="field a"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div><span style="color:var(--dim);font-weight:600;font-size:13px">Skip</span></div>
+      <div class="copy" style="margin-top:40px"><h1>How should<br>Wilt step in?</h1><p>Pick one. Change it anytime.</p></div>
+      <div class="row on" style="margin-top:26px">
+        <div class="rh"><div class="mini">12m left</div><div style="flex:1"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div><div class="radio on"></div></div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--glassb)">
+          <div class="k">Daily limit</div>
+          <div class="bignum" style="margin-top:4px;font-size:44px;line-height:46px">30<span>minutes</span></div>
+          <div class="slider"><div class="fill"></div><div class="thumb"></div></div>
+          <div class="rungs"><span>5</span><span>10</span><span>15</span><b>30</b><span>45</span><span>1h</span></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px"><div class="rh"><div class="mini">WALLED</div><div style="flex:1"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div><div class="radio"></div></div></div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="btn primary">Continue</div>
+    </div></div>
+    <div class="cap"><b>Onboarding · mode</b>The mode rows become glass instead of solid panel, with the same hairline, and the page gets the ambient field in the chosen rung colour so it already feels like the home screen.</div>
+  </div>
+
+  <!-- Onboarding permissions -->
+  <div class="slot">
+    <div class="phone ob"><div class="scr"><div class="field"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="copy" style="margin-top:40px"><h1>Almost there.</h1></div>
+      <div class="stack" style="margin-top:28px">
+        <div class="perm"><div class="sw on"></div><div style="flex:1"><h4>Draw over apps</h4><p>So the timer can float on the feed.</p><p style="color:var(--green);font-weight:600;margin-top:6px">✓ On</p></div></div>
+        <div class="perm"><div class="sw"></div><div style="flex:1"><h4>Accessibility service</h4><p>Find “Wilt Reel Counter” and turn it on.</p><p style="color:var(--bone);font-weight:600;margin-top:6px">Open settings ›</p></div></div>
+      </div>
+      <p style="color:var(--dim);font-size:12px;margin-top:16px">🔒 Reads Instagram and YouTube only. Nothing leaves your phone.</p>
+      <div class="dots"><i></i><i></i><i></i><i></i><i></i><i class="on"></i></div>
+      <div class="btn primary" style="opacity:.35">Continue</div>
+    </div></div>
+    <div class="cap"><b>Onboarding · permissions</b>The two switches move from hairline-separated rows into glass cards, matching the tiles on the dashboard. Continue is dimmed rather than hidden until both are on, so the footer never changes height.</div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <h2>Rules</h2>
+  <ul>
+    <li><b>Four button levels only.</b> Primary (bone), Accent (green, for the safe choice), Glass (secondary), Ghost (dismiss). 56 tall, 16 radius, 16px semibold. Nothing else gets a border colour.</li>
+    <li><b>Glass = bone at 6% with a 10% hairline.</b> Tiles, chips, tray, mode rows, permission cards, notes. Solid panel survives only where something has to read as a track: the island and the slider.</li>
+    <li><b>Sheets</b> sit one tone above ink (#161615) with the same 10% hairline on the top edge, 28 radius, 62% scrim behind. Content fades in a beat after the sheet lands.</li>
+    <li><b>Onboarding</b> gets the ambient field too, in the rung colour once one is chosen, so the first run and the home screen are one place.</li>
+  </ul>
+</div>
+</body>
+</html>

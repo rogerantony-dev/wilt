@@ -1,4 +1,25 @@
-import { rotateAbout, translateX } from "./catmatrix";
+import { rotateAbout, translateX, translateXScaleY } from "./catmatrix";
+
+describe("translateXScaleY", () => {
+  it("matches translateX when the eyes are fully open", () => {
+    expect(translateXScaleY(4, 1, 128)).toEqual([1, 0, 0, 1, 4, 0]);
+  });
+
+  it("keeps the eye line fixed while squashing toward it", () => {
+    const oy = 128;
+    const [a, b, c, d, tx, ty] = translateXScaleY(0, 0.25, oy);
+    expect(a * 0 + c * oy + tx).toBeCloseTo(0);
+    expect(b * 0 + d * oy + ty).toBeCloseTo(oy);
+    // A point 20 above the eye line ends up 5 above it.
+    expect(b * 0 + d * (oy - 20) + ty).toBeCloseTo(oy - 5);
+  });
+
+  it("collapses to the eye line when shut", () => {
+    const [, , , d, , ty] = translateXScaleY(-6, 0, 128);
+    expect(d).toBe(0);
+    expect(ty).toBe(128);
+  });
+});
 
 describe("translateX", () => {
   it("is the identity when there is no offset", () => {

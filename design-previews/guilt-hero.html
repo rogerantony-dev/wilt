@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wilt guilt hero</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{--ink:#0D0D0C;--panel:#1A1A18;--panelhi:#2C2C29;--bone:#F2F1EC;--ash:#9A9A92;--dim:#62625B;--glass:rgba(242,241,236,.06);--glassb:rgba(242,241,236,.10);--green:#38C786;--amber:#E0913C;--red:#D2542F;--board:#171716;
+    --sans:-apple-system,"SF Pro Display","SF Pro Text",Roboto,"Segoe UI",system-ui,sans-serif}
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--board);color:var(--bone);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .bar{padding:36px 40px 6px}.bar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}.bar p{margin:6px 0 0;color:var(--ash);max-width:80ch}
+  .rail{display:flex;flex-wrap:wrap;align-items:flex-start;gap:36px 28px;padding:20px 40px 30px}
+  .slot{width:340px}.cap{margin-top:12px;font-size:12px;color:var(--ash)}
+  .cap b{display:block;color:var(--bone);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:4px}
+  .cap.rec b::after{content:"recommended";margin-left:10px;padding:2px 8px;border-radius:999px;background:rgba(56,199,134,.14);color:var(--green);letter-spacing:.04em;font-size:10px}
+  .stage{width:340px;height:470px;border-radius:28px;background:var(--ink);position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 0 1px #262624}
+  .field{position:absolute;left:-40%;right:-40%;bottom:-50%;height:110%;border-radius:50%;pointer-events:none}
+  .field.g{background:radial-gradient(ellipse at 50% 100%,rgba(56,199,134,.42),rgba(56,199,134,.14) 45%,rgba(56,199,134,0) 70%)}
+  .field.a{background:radial-gradient(ellipse at 50% 100%,rgba(224,145,60,.42),rgba(224,145,60,.14) 45%,rgba(224,145,60,0) 70%)}
+  .field.r{background:radial-gradient(ellipse at 50% 100%,rgba(210,84,47,.46),rgba(210,84,47,.16) 45%,rgba(210,84,47,0) 70%)}
+  .stage > *{position:relative}
+  .realcat svg{width:100%;height:100%;display:block}
+  .sleep svg .eyes{display:none}
+  .title{font-size:26px;font-weight:700;letter-spacing:-.6px;margin-top:14px}
+  .sub{font-size:13.5px;color:var(--ash);margin-top:2px}
+  .pill{margin-top:12px;height:34px;padding:0 14px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ash);background:var(--glass);border:1px solid var(--glassb)}
+  .pill b{color:var(--bone);font-size:15px;font-weight:700}
+  .tab{font-variant-numeric:tabular-nums}
+
+  /* disc shared */
+  .disc{position:relative;width:214px;height:214px;flex:0 0 214px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+  .disc.green{background:radial-gradient(circle at 50% 40%,#2b6f52,#1a4a37 70%,#153d2e);box-shadow:0 0 0 14px rgba(56,199,134,.10),0 0 0 28px rgba(56,199,134,.05)}
+  .disc.amber{background:radial-gradient(circle at 50% 40%,#6f4a1e,#4a3114 70%,#3b2810);box-shadow:0 0 0 14px rgba(224,145,60,.10),0 0 0 28px rgba(224,145,60,.05)}
+  .disc.red{background:radial-gradient(circle at 50% 40%,#6f2f1e,#4a2014 70%,#3b1a10);box-shadow:0 0 0 14px rgba(210,84,47,.10),0 0 0 28px rgba(210,84,47,.05)}
+
+  /* A: filling disc */
+  .fillwrap{position:relative;width:214px;height:214px;flex:0 0 214px;border-radius:50%;overflow:hidden;background:#151514;box-shadow:0 0 0 14px rgba(224,145,60,.10),0 0 0 28px rgba(224,145,60,.05)}
+  .fillwrap .liquid{position:absolute;left:-10%;right:-10%;bottom:0;background:linear-gradient(180deg,#8a5a24,#5c3c15);border-radius:45% 55% 0 0 / 30% 30% 0 0}
+  .fillwrap .liquid::before{content:"";position:absolute;left:0;right:0;top:-8px;height:16px;border-radius:50%;background:rgba(224,145,60,.55);filter:blur(1px)}
+  .fillwrap .cat{position:absolute;left:50%;top:50%;width:130px;height:130px;margin:-65px 0 0 -65px}
+
+  /* B: arc in disc */
+  .arc{position:absolute;inset:-12px}
+  .arc svg{width:100%;height:100%}
+
+  /* C: countdown numeral on disc */
+  .big{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-size:44px;line-height:44px;font-weight:800;letter-spacing:-2px;color:var(--bone);text-shadow:0 2px 12px rgba(0,0,0,.5)}
+  .big small{display:block;font-size:10px;letter-spacing:.14em;font-weight:600;color:rgba(242,241,236,.6);margin-top:2px}
+
+  /* D: segmented ticks */
+  .ticks{position:absolute;inset:-18px}
+  .ticks svg{width:100%;height:100%}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Guilt hero, redrawn to match Block</h1>
+  <p>Block's disc works because it is one solid object with the cat living on it. These give Guilt the same object and let the time drain out of it in different ways. All take the rung colour: green, amber, red. Block is on the left for reference.</p>
+</div>
+
+<div class="rail">
+
+  <!-- Block ref -->
+  <div class="slot">
+    <div class="stage"><div class="field g"></div>
+      <div class="disc green"><div class="realcat sleep" data-t="0.02" style="width:150px;height:150px"></div><svg style="position:absolute;left:32px;top:32px;width:150px;height:150px" viewBox="0 0 256 256"><ellipse cx="102" cy="128" rx="21" ry="20" fill="#33322E"/><ellipse cx="154" cy="128" rx="21" ry="20" fill="#33322E"/><path d="M86 130 q16 12 32 0 M138 130 q16 12 32 0" fill="none" stroke="#0D0D0C" stroke-width="7" stroke-linecap="round"/></svg><div style="position:absolute;right:26px;top:22px;color:var(--green);font-weight:800;font-size:22px;letter-spacing:-1px">z<span style="font-size:13px;position:relative;top:-10px;opacity:.7">z</span></div></div>
+      <div class="title">Walled off.</div><div class="sub">Reels can't reach you till midnight.</div>
+      <div class="pill"><b class="tab">14</b> reels bounced today</div>
+    </div>
+    <div class="cap"><b>Block · as built</b>Kept for reference.</div>
+  </div>
+
+  <!-- A: draining disc -->
+  <div class="slot">
+    <div class="stage"><div class="field a"></div>
+      <div class="fillwrap"><div class="liquid" style="height:58%"></div><div class="realcat cat" data-t="0.4"></div></div>
+      <div class="title tab">17 <span style="font-size:15px;font-weight:600;color:var(--ash);letter-spacing:0">min left</span></div>
+      <div class="sub">of 30 today</div>
+      <div class="pill"><b class="tab">13</b> min scrolled</div>
+    </div>
+    <div class="cap rec"><b>A · The disc drains</b>Same disc as Block, but it is a vessel: the colour sits at the level of time left and sinks through the day. The cat stands in it and wilts as the level drops. At the limit it is empty and red. The headline is the minutes left, the pill is what you spent.</div>
+  </div>
+
+  <!-- B: arc on the disc -->
+  <div class="slot">
+    <div class="stage"><div class="field a"></div>
+      <div class="disc amber">
+        <div class="arc"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="47" fill="none" stroke="rgba(242,241,236,.08)" stroke-width="3"/><circle cx="50" cy="50" r="47" fill="none" stroke="#E0913C" stroke-width="3" stroke-linecap="round" stroke-dasharray="295" stroke-dashoffset="125" transform="rotate(-90 50 50)"/></svg></div>
+        <div class="realcat" data-t="0.4" style="width:150px;height:150px"></div>
+      </div>
+      <div class="title tab">17 <span style="font-size:15px;font-weight:600;color:var(--ash);letter-spacing:0">min left</span></div>
+      <div class="sub">of 30 today</div>
+      <div class="pill"><b class="tab">13</b> min scrolled</div>
+    </div>
+    <div class="cap"><b>B · Thin arc on the disc</b>Closest to what is there now, but the ring becomes a hairline that hugs the disc instead of a thick band around empty space. The disc is the object, the arc is a detail on it.</div>
+  </div>
+
+  <!-- C: numeral on disc -->
+  <div class="slot">
+    <div class="stage"><div class="field a"></div>
+      <div class="disc amber" style="align-items:flex-start;padding-top:14px">
+        <div class="realcat" data-t="0.4" style="width:120px;height:120px"></div>
+        <div class="big tab">17<small>MIN LEFT</small></div>
+      </div>
+      <div class="title">Clock's ticking.</div><div class="sub">13 of 30 minutes gone today.</div>
+      <div class="pill"><b class="tab">21</b> reels · <b class="tab">4</b> shorts</div>
+    </div>
+    <div class="cap"><b>C · Number lives on the disc</b>Cat up top, countdown burned into the lower half of the disc, and the headline underneath becomes the mood line the app already has ("Clock's ticking.", "Deep in it."). Most like Block's layout.</div>
+  </div>
+
+  <!-- D: ticks -->
+  <div class="slot">
+    <div class="stage"><div class="field a"></div>
+      <div class="disc amber">
+        <div class="ticks"><svg viewBox="0 0 100 100" id="tickSvg"></svg></div>
+        <div class="realcat" data-t="0.4" style="width:150px;height:150px"></div>
+      </div>
+      <div class="title tab">17 <span style="font-size:15px;font-weight:600;color:var(--ash);letter-spacing:0">min left</span></div>
+      <div class="sub">of 30 today</div>
+      <div class="pill"><b class="tab">13</b> min scrolled</div>
+    </div>
+    <div class="cap"><b>D · Minute ticks</b>One tick per minute of the limit around the disc, lit ones are what is left. Reads like a watch bezel and makes the limit itself visible: a 5-minute day has five ticks, an hour has sixty.</div>
+  </div>
+
+  <!-- A at the limit -->
+  <div class="slot">
+    <div class="stage"><div class="field r"></div>
+      <div class="fillwrap" style="box-shadow:0 0 0 14px rgba(210,84,47,.10),0 0 0 28px rgba(210,84,47,.05)"><div class="liquid" style="height:0"></div><div class="realcat cat" data-t="1"></div></div>
+      <div class="title">Walled off.</div><div class="sub">You hit 30 minutes. Back at midnight.</div>
+      <div class="pill"><b class="tab">31</b> min scrolled</div>
+    </div>
+    <div class="cap"><b>A · at the limit</b>Empty vessel, red field, the cat is gone. Mirrors Block's headline, since the outcome is the same wall.</div>
+  </div>
+
+</div>
+<script src="rot-cat.js"></script>
+<script>
+  document.querySelectorAll('.realcat').forEach((el, i) => { el.innerHTML = cat(parseFloat(el.dataset.t), { anim:false, id:'gh'+i }); });
+  // D ticks: 30 ticks, 17 lit
+  const svg = document.getElementById('tickSvg'); const N=30, lit=17; let s='';
+  for (let i=0;i<N;i++){ const a=(-90 + i*360/N)*Math.PI/180; const r1=46.5, r2=49.5; const x1=50+Math.cos(a)*r1,y1=50+Math.sin(a)*r1,x2=50+Math.cos(a)*r2,y2=50+Math.sin(a)*r2; s+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${i<lit?'#E0913C':'rgba(242,241,236,.14)'}" stroke-width="1.6" stroke-linecap="round"/>`; }
+  svg.innerHTML=s;
+</script>
+</body>
+</html>

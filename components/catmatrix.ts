@@ -15,6 +15,13 @@ export function translateX(tx: number): Matrix {
   return [1, 0, 0, 1, tx, 0];
 }
 
+/** Horizontal translation by `tx` plus a vertical squash by `sy` about y = oy
+ *  (used for the eyes darting and blinking at once: sy 1 is open, 0 is shut). */
+export function translateXScaleY(tx: number, sy: number, oy: number): Matrix {
+  "worklet";
+  return [1, 0, 0, sy, tx, oy - sy * oy];
+}
+
 /** Rotation by `deg` degrees about the pivot (ox, oy) (used for the tail). */
 export function rotateAbout(deg: number, ox: number, oy: number): Matrix {
   "worklet";

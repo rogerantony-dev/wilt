@@ -1,19 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AppState,
   BackHandler,
-  Image,
   PermissionsAndroid,
   Platform,
-  Pressable,
-  ScrollView,
-  Text,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 import { CatGallery } from "./components/CatGallery";
 import { HistoryScreen } from "./components/HistoryScreen";
@@ -36,36 +30,23 @@ import {
   type WiltStatus,
 } from "./modules/wiltnative";
 import { computeProgress, type Progress } from "./components/progress";
-import { CATS, CAT_THRESHOLDS } from "./components/cats";
-import { ProgressStrip } from "./components/ProgressStrip";
+import { CAT_THRESHOLDS } from "./components/cats";
 import { MilestoneModal } from "./components/MilestoneModal";
 import { Sheet } from "./components/Sheet";
-import { KitCatClock } from "./components/KitCatClock";
+import { DiscHero } from "./components/DiscHero";
+import { ChartIcon, ChevronDownIcon, HourglassIcon, LockIcon, PawIcon, PlusIcon, ShieldIcon, StopwatchIcon } from "./components/icons";
+import { AmbientField } from "./components/AmbientField";
+import { decayStage, stageT } from "./components/catdecay";
+import { timeLeftState } from "./components/timeleft";
+import { LimitSlider } from "./components/LimitSlider";
+import { PanelUIProvider } from "./components/ui/panel-ui-provider";
+import { Alert } from "./components/ui/alert";
+import { Button } from "./components/ui/button";
+import { AccentButton, GhostButton, GLASS, PrimaryButton } from "./components/kit";
+import { Tabs } from "./components/ui/tabs";
+import { Text } from "./components/ui/text";
+import { Typography } from "./components/ui/typography";
 import "./global.css";
-
-/** Matches the native pill curve: calm under ~10 min, fully red by ~50. */
-function rednessForMinutes(minutes: number): number {
-  return Math.min(1, Math.max(0, (minutes - 10) / 40));
-}
-
-function vibe(minutes: number): { title: string; sub: string } {
-  if (minutes < 1)
-    return { title: "Clock's clean.", sub: "No time wasted yet today. Look at you." };
-  if (minutes < 5)
-    return { title: "Just a peek.", sub: "A couple minutes in. Willpower intact." };
-  if (minutes < 15)
-    return { title: "Clock's ticking.", sub: "The scroll is starting to pull." };
-  if (minutes < 30)
-    return { title: "Time's slipping.", sub: "That's a real chunk of today. Stretch?" };
-  if (minutes < 60)
-    return { title: "Deep in it.", sub: "Most of an hour, gone. Go touch grass." };
-  if (minutes < 120)
-    return { title: "Where'd the day go?", sub: "Over an hour scrolling. Outside. Now." };
-  return {
-    title: "Bruh.",
-    sub: "2+ hours scrolling. What are you even doing with your life?",
-  };
-}
 
 /** Device-local "yyyy-mm-dd", matching the native SimpleDateFormat. */
 function localToday(): string {
@@ -98,6 +79,8 @@ export default function App() {
   // (mount-only) rather than re-subscribing on every navigation.
   const screenRef = useRef(screen);
   screenRef.current = screen;
+  const catsOpenRef = useRef(catsOpen);
+  catsOpenRef.current = catsOpen;
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
 
@@ -144,6 +127,10 @@ export default function App() {
       }
     });
     const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (catsOpenRef.current) {
+        setCatsOpen(false);
+        return true;
+      }
       if (screenRef.current === "history") {
         setScreen("home");
         return true;
@@ -160,6 +147,16 @@ export default function App() {
   const overlayDone = status?.overlay === true;
   const accessibilityDone = status?.accessibilityRunning === true;
   const allReady = overlayDone && accessibilityDone;
+  // Whether the overlay permission was already granted when the app came up.
+  // A fresh install has neither permission, so a missing overlay at launch
+  // means this run goes through onboarding: hold on its send-off screen until
+  // "Open Wilt" instead of swapping to the dashboard mid-page. (The overlay
+  // check is synchronous; the accessibility flag can lag on a cold start, so
+  // it is not the signal.)
+  const setUpAtLaunch = useRef<boolean | null>(null);
+  if (status && setUpAtLaunch.current === null) setUpAtLaunch.current = overlayDone;
+  const [onboardingFinished, setOnboardingFinished] = useState(false);
+  const showDashboard = allReady && (setUpAtLaunch.current !== false || onboardingFinished);
   // The service switched itself off for a payment app; offer the way back on
   // instead of dropping the user into first-run setup.
   const paymentPauseApp = !accessibilityDone ? status?.paymentPauseApp ?? null : null;
@@ -251,40 +248,51 @@ export default function App() {
     [limit, refresh]
   );
 
+  // The one colour on the home screen: the rung the day is on. Green while the
+  // budget is healthy or the reels are walled, amber as it runs down, red past it.
+  const accent =
+    mode === "block"
+      ? C.toxic
+      : seconds >= limit * 60
+        ? OVER
+        : timeLeftState(Math.floor(seconds / 60), limit).color;
+
+  // How far today has burned, for the ambient field: 0 untouched, 1 at the
+  // limit. Block holds a calm mid-level since nothing is being spent.
+  const burn = mode === "block" ? 0.35 : Math.min(1, seconds / Math.max(1, limit * 60));
+
   const grantMinute = useCallback(() => {
     grantExtraMinute();
     refresh();
   }, [refresh]);
 
   return (
-    <View className="flex-1 bg-ink">
-      <SafeAreaView className="flex-1">
+    <SafeAreaProvider>
+    <PanelUIProvider>
+      {/* SafeAreaView is not a core component, so it takes a style rather than a className. */}
+      <SafeAreaView style={{ flex: 1 }}>
         <StatusBar style="light" />
         {Platform.OS !== "android" ? (
           <View className="grow px-6 pt-4">
             <Brand on={false} />
-            <View className="mt-10 rounded-3xl bg-panel p-6">
-              <Text className="text-[15px] leading-6 text-ash">
-                The Reel counter is Android only. It relies on Android's overlay
-                and accessibility features. Install the Android build to use it.
-              </Text>
+            <View className="mt-10 rounded-3xl bg-card p-6">
+              <Typography type="body-sm" muted className="leading-6">
+                The Reel counter is Android only. It relies on Android's overlay and accessibility
+                features. Install the Android build to use it.
+              </Typography>
             </View>
           </View>
-        ) : allReady ? (
-          <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-            <View className="grow px-6 pb-7 pt-4">
+        ) : showDashboard ? (
+          <View className="flex-1 overflow-hidden px-6 pb-6 pt-4">
+              <AmbientField color={accent} level={burn} />
               <View className="flex-row items-center justify-between">
                 <Brand on={true} />
                 <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
               </View>
-              <ProgressStrip
+              <Dashboard
                 streak={progress.streak}
-                best={progress.best}
                 points={progress.points}
                 pendingPoints={progress.pendingPoints}
-                onPress={() => setScreen("history")}
-              />
-              <Dashboard
                 mode={mode}
                 seconds={seconds}
                 count={count}
@@ -292,14 +300,12 @@ export default function App() {
                 limit={limit}
                 autoBlocked={autoBlocked}
                 graceLeft={graceLeft}
-                unlockedCount={progress.unlockedCount}
                 onGrantMinute={grantMinute}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
               />
-            </View>
-          </ScrollView>
+          </View>
         ) : paymentPauseApp ? (
           <PaymentPauseScreen
             app={paymentPauseApp}
@@ -312,6 +318,7 @@ export default function App() {
           <OnboardingFlow
             overlayDone={overlayDone}
             accessibilityDone={accessibilityDone}
+            onFinish={() => setOnboardingFinished(true)}
           />
         )}
       </SafeAreaView>
@@ -348,10 +355,7 @@ export default function App() {
         }}
       />
 
-      <HistoryScreen
-        visible={screen === "history"}
-        onClose={() => setScreen("home")}
-      />
+      <HistoryScreen visible={screen === "history"} onClose={() => setScreen("home")} />
 
       <LimitPicker
         visible={limitPickerOpen}
@@ -360,13 +364,13 @@ export default function App() {
         onPick={changeLimit}
         onClose={() => setLimitPickerOpen(false)}
       />
-    </View>
+    </PanelUIProvider>
+    </SafeAreaProvider>
   );
 }
 
 const WASTE = "#E0913C"; // time burned (guilt)
 const OVER = "#D2542F"; // past the limit
-const LIMIT_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 /** "45m" / "1h" / "1h 30m" from a minute count. */
 function fmtLimit(min: number): string {
@@ -384,7 +388,9 @@ function Dashboard({
   limit,
   autoBlocked,
   graceLeft,
-  unlockedCount,
+  streak,
+  points,
+  pendingPoints,
   onGrantMinute,
   onChangeMode,
   onOpenHistory,
@@ -397,186 +403,140 @@ function Dashboard({
   limit: number;
   autoBlocked: boolean;
   graceLeft: number;
-  unlockedCount: number;
+  streak: number;
+  points: number;
+  pendingPoints: number;
   onGrantMinute: () => void;
   onChangeMode: (mode: WiltMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
+  const [slot, setSlot] = useState(0);
   // Once today's limit is crossed we stay on the limit page for the rest of the
   // day (seconds only climb), even while a granted grace minute briefly unblocks
   // reels — so the Guilt/Block switcher doesn't flash back mid-session.
   const limitReached = mode === "guilt" && seconds >= limit * 60;
 
+  // The hero takes whatever height it needs at the top; the controls below are
+  // anchored to the bottom, so switching Guilt and Block (whose heroes differ
+  // in height) moves nothing but the hero. The screen never scrolls.
   return (
-    <View className="grow">
-      {limitReached ? (
-        <AutoBlockedHero minutes={minutes} limit={limit} />
-      ) : mode === "guilt" ? (
-        <GuiltHero minutes={minutes} count={count} shorts={shorts} limit={limit} />
-      ) : (
-        <BlockHero count={count} unlockedCount={unlockedCount} />
-      )}
+    <View className="flex-1">
+      {/* One fixed slot for every hero, measured once, so Guilt, Block and the
+          walled state all centre in the same box and nothing below them moves. */}
+      <View className="flex-1 justify-center" onLayout={(e) => setSlot(e.nativeEvent.layout.height)}>
+        {slot > 0 ? (
+          limitReached ? (
+            <DiscHero
+              color={OVER}
+              level={0}
+              t={1}
+              title="Walled off."
+              subtitle={`You hit ${fmtLimit(limit)}. Back at midnight.`}
+              height={slot}
+            />
+          ) : mode === "guilt" ? (
+            <GuiltDisc minutes={minutes} limit={limit} height={slot} />
+          ) : (
+            <DiscHero
+              color={C.toxic}
+              level={1}
+              t={0.02}
+              asleep
+              title="Walled off."
+              subtitle="Reels can't reach you till midnight."
+              height={slot}
+            />
+          )
+        ) : null}
+      </View>
+
+      <View className="flex-row gap-2.5">
+        <StatTile value={`${streak}`} label={streak === 1 ? "day clean" : "days clean"} onPress={onOpenHistory} />
+        <StatTile
+          value={points.toLocaleString()}
+          label={pendingPoints > 0 ? `pts · +${pendingPoints}` : "points"}
+          onPress={onOpenCats}
+        />
+      </View>
 
       {limitReached ? (
-        <View className="mt-8 gap-3">
+        <View className="mt-5 gap-3">
           {graceLeft > 0 ? (
-            <Pressable
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              className="rounded-2xl"
+              style={GLASS}
+              startContent={<PlusIcon color={C.bone} />}
+              endContent={
+                <Text size="xs" className="text-dim">
+                  · {graceLeft} left
+                </Text>
+              }
               onPress={onGrantMinute}
-              className="flex-row items-center justify-center gap-2 rounded-2xl border border-bone/15 py-4 active:opacity-70"
             >
-              <Ionicons name="add-circle-outline" size={16} color={C.bone} />
-              <Text className="text-[14px] font-semibold text-bone">1 more minute</Text>
-              <Text className="text-[12.5px] text-dim">· {graceLeft} left</Text>
-            </Pressable>
+              1 more minute
+            </Button>
           ) : null}
-          <View className="flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4">
-            <Ionicons name={autoBlocked ? "lock-closed" : "time-outline"} size={15} color={C.dim} />
-            <Text className="text-[14px] font-medium text-ash">
+          <Alert
+            icon={autoBlocked ? <LockIcon size={16} color={C.dim} /> : <HourglassIcon size={16} color={C.dim} />}
+            className="rounded-2xl"
+            style={GLASS}
+          >
+            <Text size="sm" muted weight="medium">
               {autoBlocked ? "Blocked · unlocks at midnight" : "Extra minute · reels open"}
             </Text>
-          </View>
+          </Alert>
         </View>
       ) : (
-        <View className="mt-8">
+        <View className="mt-5">
           <ModeSwitch mode={mode} onChangeMode={onChangeMode} />
         </View>
       )}
 
-      <View style={{ marginTop: "auto", flexDirection: "row", gap: 12, paddingTop: 24 }}>
-        <TrayButton icon="paw" label="Cats" onPress={onOpenCats} />
-        <TrayButton icon="bar-chart" label="History" onPress={onOpenHistory} />
+      <View className="flex-row gap-3 pt-5">
+        <TrayButton icon={<PawIcon color={C.bone} />} label="Cats" onPress={onOpenCats} />
+        <TrayButton icon={<ChartIcon color={C.bone} />} label="History" onPress={onOpenHistory} />
       </View>
     </View>
   );
 }
 
-function AutoBlockedHero({ minutes, limit }: { minutes: number; limit: number }) {
-  const wasted =
-    minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+/** The Guilt disc: the vessel drains as the minutes burn, the cat wilts with it. */
+function GuiltDisc({ minutes, limit, height }: { minutes: number; limit: number; height: number }) {
+  const { minutesLeft, color } = timeLeftState(minutes, limit);
+  const t = stageT(decayStage(minutes, limit));
   return (
-    <View className="mt-14">
-      <View
-        className="h-[72px] w-[72px] items-center justify-center rounded-full"
-        style={{ backgroundColor: "rgba(56,199,134,0.14)" }}
-      >
-        <Ionicons name="shield-checkmark" size={32} color={C.toxic} />
-      </View>
-      <Kicker color={C.toxic} style={{ marginTop: 20 }}>
-        Limit reached · blocked
-      </Kicker>
-      <Text
-        className="mt-3 text-[32px] font-semibold text-bone"
-        style={{ letterSpacing: -0.6, lineHeight: 36 }}
-      >
-        Walled off{"\n"}till midnight.
-      </Text>
-      <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-        You hit your {fmtLimit(limit)} limit today. Every reel and short gets
-        bounced for the rest of the day.
-      </Text>
-      <View className="mt-7 flex-row items-baseline gap-2.5">
-        <Text
-          className="text-[34px] font-semibold"
-          style={{ color: OVER, letterSpacing: -0.8, fontVariant: ["tabular-nums"] }}
-        >
-          {wasted}
-        </Text>
-        <Text className="text-[14px] text-ash">wasted today</Text>
-      </View>
-    </View>
+    <DiscHero
+      color={color}
+      level={limit > 0 ? minutesLeft / limit : 0}
+      t={t}
+      title={`${minutesLeft} min left`}
+      subtitle={`of ${limit} today`}
+      height={height}
+    />
   );
 }
 
-function GuiltHero({
-  minutes,
-  count,
-  shorts,
-  limit,
-}: {
-  minutes: number;
-  count: number;
-  shorts: number;
-  limit: number;
-}) {
-  const over = minutes > limit;
-  const numColor = over ? OVER : WASTE;
+/** One quiet glass tile: a number and what it is. Taps through to its sheet. */
+function StatTile({ value, label, onPress }: { value: string; label: string; onPress: () => void }) {
   return (
-    <View className="mt-11">
-      <View className="flex-row items-baseline">
-        <Text
-          className="font-semibold"
-          style={{ fontSize: 88, lineHeight: 86, letterSpacing: -3, color: numColor, fontVariant: ["tabular-nums"] }}
-        >
-          {minutes}
-        </Text>
-        <Text className="ml-2.5 text-dim" style={{ fontSize: 21, fontWeight: "500" }}>
-          min wasted today
-        </Text>
-      </View>
-      <View className="mt-7 items-center">
-        <KitCatClock usedMinutes={minutes} limitMinutes={limit} />
-      </View>
-      <Text className="mt-6 text-[22px] font-semibold text-bone" style={{ letterSpacing: -0.4 }}>
-        {vibe(minutes).title}
+    <Button
+      variant="ghost"
+      className="flex-1 flex-col items-start gap-0 rounded-2xl px-3.5 py-3"
+      style={GLASS}
+      onPress={onPress}
+    >
+      <Text weight="bold" style={{ fontSize: 22, lineHeight: 26, letterSpacing: -0.6, fontVariant: ["tabular-nums"] }}>
+        {value}
       </Text>
-      <Counts count={count} shorts={shorts} />
-    </View>
-  );
-}
-
-function BlockHero({ count, unlockedCount }: { count: number; unlockedCount: number }) {
-  // One of the cats you have earned, picked once when the screen mounts so it
-  // does not reshuffle on every status refresh. The first cat is always free.
-  const [pick] = useState(() => Math.floor(Math.random() * Math.max(1, unlockedCount)));
-  const cat = CATS[Math.min(pick, CATS.length - 1)];
-  return (
-    <View className="mt-14">
-      <Image
-        source={cat.src}
-        resizeMode="cover"
-        accessibilityLabel="One of your unlocked cats"
-        style={{ width: 132, height: 132, borderRadius: 24 }}
-      />
-      <Text className="mt-6 text-[32px] font-semibold text-bone" style={{ letterSpacing: -0.6, lineHeight: 36 }}>
-        Reels can't{"\n"}reach you.
+      <Text size="xs" weight="semibold" className="uppercase text-dim" style={{ letterSpacing: 0.9, fontSize: 10.5 }}>
+        {label}
       </Text>
-      <Text className="mt-2.5 text-[15px] leading-snug text-ash">
-        Every reel and short gets bounced the second it appears.
-      </Text>
-      <View className="mt-7 flex-row items-baseline gap-2.5">
-        <Text
-          className="text-[40px] font-semibold text-toxic"
-          style={{ letterSpacing: -1, fontVariant: ["tabular-nums"] }}
-        >
-          {count}
-        </Text>
-        <Text className="text-[14px] text-ash">
-          {count === 1 ? "reel" : "reels"} bounced today
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function Counts({ count, shorts }: { count: number; shorts: number }) {
-  return (
-    <View className="mt-3 flex-row gap-5">
-      <CountItem color={WASTE} value={count} unit={count === 1 ? "reel" : "reels"} />
-      <CountItem color="rgba(224,145,60,0.35)" value={shorts} unit={shorts === 1 ? "short" : "shorts"} />
-    </View>
-  );
-}
-
-function CountItem({ color, value, unit }: { color: string; value: number; unit: string }) {
-  return (
-    <View className="flex-row items-center gap-2">
-      <View style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: color }} />
-      <Text className="text-[14px] text-ash">
-        <Text className="font-semibold text-bone">{value}</Text> {unit}
-      </Text>
-    </View>
+    </Button>
   );
 }
 
@@ -585,32 +545,38 @@ function TrayButton({
   label,
   onPress,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: ReactNode;
   label: string;
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <Button
+      variant="secondary"
+      size="lg"
+      className="flex-1 rounded-2xl"
+      style={GLASS}
+      labelClassName="text-[15px] font-semibold"
+      startContent={icon}
       onPress={onPress}
-      className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-panel py-4 active:opacity-80"
     >
-      <Ionicons name={icon} size={18} color={C.bone} />
-      <Text className="text-[15px] font-semibold text-bone">{label}</Text>
-    </Pressable>
+      {label}
+    </Button>
   );
 }
 
 function LimitChip({ value, onPress }: { value: number; onPress: () => void }) {
   return (
-    <Pressable
+    <Button
+      variant="secondary"
+      size="sm"
+      className="rounded-full px-3.5"
+      style={GLASS}
+      labelClassName="text-[12.5px] font-medium text-muted-foreground"
+      endContent={<ChevronDownIcon color={C.dim} />}
       onPress={onPress}
-      className="flex-row items-center gap-1.5 rounded-full bg-panel px-3.5 py-2 active:opacity-80"
     >
-      <Text className="text-[12.5px] font-medium text-ash">
-        Limit <Text className="font-semibold text-bone">{fmtLimit(value)}</Text>
-      </Text>
-      <Ionicons name="chevron-down" size={13} color={C.dim} />
-    </Pressable>
+      Limit <Text size="xs" weight="semibold">{fmtLimit(value)}</Text>
+    </Button>
   );
 }
 
@@ -627,52 +593,54 @@ function LimitPicker({
   onPick: (minutes: number) => void;
   onClose: () => void;
 }) {
+  // The slider is a draft; the button commits, so dragging through lower rungs
+  // does not close the sheet on the first step.
+  const [draft, setDraft] = useState(pendingLimit > 0 ? pendingLimit : value);
+  useEffect(() => {
+    if (visible) setDraft(pendingLimit > 0 ? pendingLimit : value);
+  }, [visible, value, pendingLimit]);
+
   return (
     <Sheet visible={visible} onDismiss={onClose}>
-        <View className="gap-1.5">
-          <Text className="text-[21px] font-semibold text-bone">Daily limit</Text>
-          <Text className="text-[14px] leading-snug text-ash">
-            Cross it and Wilt blocks the reels.
-          </Text>
-          <View className="mt-4 flex-row flex-wrap justify-between gap-y-2.5">
-            {LIMIT_OPTIONS.map((m) => {
-              const sel = m === value;
-              const isPending = pendingLimit > 0 && m === pendingLimit;
-              return (
-                <Pressable
-                  key={m}
-                  onPress={() => onPick(m)}
-                  className="w-[31%] items-center rounded-2xl border py-4 active:opacity-80"
-                  style={{
-                    backgroundColor: sel ? "rgba(224,145,60,0.14)" : "transparent",
-                    borderColor: sel ? WASTE : isPending ? "rgba(224,145,60,0.45)" : "rgba(242,241,236,0.10)",
-                    borderStyle: isPending && !sel ? "dashed" : "solid",
-                  }}
-                >
-                  <Text
-                    className="text-[16px] font-semibold"
-                    style={{ color: sel || isPending ? WASTE : C.bone }}
-                  >
-                    {fmtLimit(m)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {pendingLimit > 0 ? (
-            <View className="mt-4 flex-row items-center gap-2.5 rounded-2xl bg-ink/50 px-3.5 py-3">
-              <Ionicons name="time-outline" size={15} color={C.ash} />
-              <Text className="flex-1 text-[12.5px] leading-snug text-ash">
-                <Text className="font-semibold text-bone">{fmtLimit(pendingLimit)}</Text> starts
-                tomorrow. Today stays at {fmtLimit(value)}.
-              </Text>
-            </View>
-          ) : (
-            <Text className="mt-4 text-[12px] leading-snug text-dim">
-              Lowering is instant. Raising takes effect at tomorrow's reset.
-            </Text>
-          )}
+      <View className="gap-1.5">
+        <Typography type="h4">Daily limit</Typography>
+        <Typography type="body-sm" muted className="leading-snug">
+          Cross it and Wilt blocks the reels.
+        </Typography>
+        <View className="mt-4">
+          <LimitSlider value={draft} onPick={setDraft} hint={false} />
         </View>
+        {pendingLimit > 0 ? (
+          <Alert
+            variant="warning"
+            className="mt-4 rounded-2xl"
+            style={{ backgroundColor: "rgba(224,145,60,0.08)", borderColor: "rgba(224,145,60,0.30)" }}
+            icon={<HourglassIcon size={16} color={WASTE} />}
+          >
+            <Text size="xs" muted className="leading-snug">
+              <Text size="xs" weight="semibold">{fmtLimit(pendingLimit)}</Text> starts tomorrow. Today
+              stays at {fmtLimit(value)}.
+            </Text>
+          </Alert>
+        ) : (
+          <Text size="xs" className="mt-4 leading-snug text-dim">
+            Lowering is instant. Raising takes effect at tomorrow's reset.
+          </Text>
+        )}
+        <PrimaryButton
+          className="mt-4"
+          disabled={draft === value ? pendingLimit === 0 : draft === pendingLimit}
+          onPress={() => onPick(draft)}
+        >
+          {draft === pendingLimit
+            ? `${fmtLimit(draft)} is set for tomorrow`
+            : draft < value
+              ? `Lower to ${fmtLimit(draft)}`
+              : draft > value
+                ? `Raise to ${fmtLimit(draft)} tomorrow`
+                : `Keep ${fmtLimit(value)}`}
+        </PrimaryButton>
+      </View>
     </Sheet>
   );
 }
@@ -684,58 +652,41 @@ function ModeSwitch({
   mode: WiltMode;
   onChangeMode: (mode: WiltMode) => void;
 }) {
+  const block = mode === "block";
   return (
-    <View className="gap-3">
-      <View className="flex-row gap-1 rounded-2xl bg-panel p-1">
-        <ModeOption
-          active={mode === "guilt"}
-          icon="stopwatch-outline"
-          label="Guilt"
-          onPress={() => onChangeMode("guilt")}
-        />
-        <ModeOption
-          active={mode === "block"}
-          icon="shield-checkmark"
-          label="Block"
-          accent
-          onPress={() => onChangeMode("block")}
-        />
-      </View>
-      <Text className="px-0.5 text-[13.5px] leading-snug text-ash">
-        {mode === "guilt"
-          ? "Guilt. Watch all you want, the clock keeps time."
-          : "Block. Wilt backs you out of every reel and short."}
-      </Text>
-    </View>
-  );
-}
-
-function ModeOption({
-  active,
-  icon,
-  label,
-  accent,
-  onPress,
-}: {
-  active: boolean;
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  accent?: boolean;
-  onPress: () => void;
-}) {
-  const activeBg = accent ? "bg-toxic" : "bg-panelhi";
-  const iconColor = active ? (accent ? C.ink : C.bone) : C.ash;
-  const textClass = active ? (accent ? "text-ink" : "text-bone") : "text-ash";
-  return (
-    <Pressable
-      onPress={onPress}
-      className={`flex-1 flex-row items-center justify-center gap-2 rounded-xl py-3 ${
-        active ? activeBg : ""
-      }`}
+    <Tabs
+      value={mode}
+      defaultValue={mode}
+      onValueChange={(v) => onChangeMode(v as WiltMode)}
+      variant="segmented"
     >
-      <Ionicons name={icon} size={17} color={iconColor} />
-      <Text className={`text-[14.5px] font-semibold ${textClass}`}>{label}</Text>
-    </Pressable>
+      {/* The old island: a solid track, the active cell raised, and green with
+          dark type when that cell is Block. */}
+      <Tabs.List
+        className="rounded-[16px] p-1"
+        style={GLASS}
+        indicatorClassName={block ? "rounded-[12px] bg-success" : "rounded-[12px] bg-bone/10"}
+      >
+        <Tabs.Trigger
+          value="guilt"
+          className="rounded-[12px] py-3"
+          icon={<StopwatchIcon size={17} color={!block ? C.bone : C.ash} />}
+        >
+          <Text weight="semibold" style={{ fontSize: 14.5, color: !block ? C.bone : C.ash }}>
+            Guilt
+          </Text>
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="block"
+          className="rounded-[12px] py-3"
+          icon={<ShieldIcon size={17} color={block ? C.ink : C.ash} />}
+        >
+          <Text weight="semibold" style={{ fontSize: 14.5, color: block ? C.ink : C.ash }}>
+            Block
+          </Text>
+        </Tabs.Trigger>
+      </Tabs.List>
+    </Tabs>
   );
 }
 
@@ -752,33 +703,22 @@ function PushThroughModal({
     // A swipe down counts as "keep blocking"; the backdrop stays inert so the
     // choice is deliberate rather than a stray tap.
     <Sheet visible={visible} onDismiss={onKeepBlocking} dismissOnBackdrop={false}>
-        <View className="gap-5">
-          <View className="gap-2">
-            <Kicker>Leaving block mode</Kicker>
-            <Text className="text-[24px] font-semibold text-bone" style={{ letterSpacing: -0.4 }}>
-              Going soft already?
-            </Text>
-            <Text className="text-[14.5px] leading-6 text-ash">
-              You're in Block mode and the reels can't touch you. Switch back and
-              you're choosing to feed the addiction. Why not just push through?
-            </Text>
-          </View>
-          <View className="gap-2.5">
-            <Pressable
-              onPress={onKeepBlocking}
-              className="items-center rounded-2xl bg-toxic py-4 active:opacity-80"
-            >
-              <Text className="text-[15.5px] font-semibold text-ink">Keep blocking</Text>
-            </Pressable>
-            <Pressable
-              onPress={onGiveIn}
-              className="items-center rounded-2xl py-3 active:opacity-60"
-            >
-              <Text className="text-[15px] font-medium text-dim">I'll give in</Text>
-            </Pressable>
-          </View>
+      <View className="gap-5">
+        <View className="gap-2">
+          <Kicker>Leaving block mode</Kicker>
+          <Typography type="h3" style={{ letterSpacing: -0.4 }}>
+            Going soft already?
+          </Typography>
+          <Typography type="body-sm" muted className="leading-6">
+            You're in Block mode and the reels can't touch you. Switch back and you're choosing to
+            feed the addiction. Why not just push through?
+          </Typography>
         </View>
+        <View className="gap-2.5">
+          <AccentButton onPress={onKeepBlocking}>Keep blocking</AccentButton>
+          <GhostButton onPress={onGiveIn}>I'll give in</GhostButton>
+        </View>
+      </View>
     </Sheet>
   );
 }
-

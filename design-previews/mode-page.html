@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wilt mode page</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink: #0D0D0C; --ink2: #141413; --panel: #1A1A18; --panelhi: #2C2C29;
+    --bone: #F2F1EC; --ash: #9A9A92; --dim: #62625B; --hair: rgba(242,241,236,.10);
+    --green: #38C786; --amber: #E0913C; --red: #D2542F;
+    --board: #171716;
+    --sans: -apple-system, "SF Pro Text", "SF Pro Display", Roboto, "Segoe UI", system-ui, sans-serif;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    /* the ramp: same curve as the floating pill, calm under 10, red by 50 */
+    --r5: #38C786; --r10: #5EC46E; --r15: #B9BE4A; --r30: #E0913C; --r45: #DB6F35; --r60: #D2542F;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--board); color: var(--bone); font: 14px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  .bar { padding: 36px 40px 18px; }
+  .bar h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
+  .bar p { margin: 6px 0 0; color: var(--ash); max-width: 74ch; }
+  .ramp { display: flex; align-items: center; gap: 0; margin: 18px 0 0; width: 420px; height: 10px; border-radius: 5px; overflow: hidden;
+    background: linear-gradient(90deg, var(--r5) 0%, var(--r10) 20%, var(--r15) 40%, var(--r30) 60%, var(--r45) 80%, var(--r60) 100%); }
+  .rampl { display: flex; justify-content: space-between; width: 420px; margin-top: 6px; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .rail { display: flex; flex-wrap: wrap; gap: 44px 34px; padding: 14px 40px 40px; }
+  .slot { flex: 0 0 auto; }
+  .cap { width: 390px; margin-top: 14px; font-size: 12px; color: var(--ash); }
+  .cap b { display: block; color: var(--bone); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 11px; margin-bottom: 4px; }
+  .notes { padding: 0 40px 60px; color: var(--ash); max-width: 78ch; }
+  .notes h2 { font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 24px 0 10px; }
+  .notes li { margin: 6px 0; } .notes b { color: var(--bone); font-weight: 600; }
+
+  /* phone */
+  .phone { width: 390px; height: 844px; border-radius: 48px; overflow: hidden; position: relative; background: var(--ink);
+    box-shadow: 0 30px 70px rgba(0,0,0,.45), 0 0 0 10px #101010, 0 0 0 12px #2a2a27; }
+  .scr { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 60px 24px 28px; }
+  .top { display: flex; align-items: center; justify-content: space-between; height: 24px; }
+  .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; letter-spacing: -.2px; }
+  .brand i { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+  .body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  h2.t { margin: 0; font-size: 32px; line-height: 36px; font-weight: 700; letter-spacing: -.8px; }
+  p.s { margin: 8px 0 0; font-size: 15px; color: var(--ash); }
+  .dots { display: flex; justify-content: center; gap: 7px; margin: 18px 0 16px; }
+  .dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--panelhi); }
+  .dots i.on { width: 26px; background: var(--bone); }
+  .cta { height: 58px; border-radius: 22px; background: var(--bone); color: var(--ink); font-weight: 600; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+  .kicker { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+  .tab { font-variant-numeric: tabular-nums; }
+
+  /* mini feed previews */
+  .mini { width: 68px; height: 92px; border-radius: 12px; background: var(--ink2); border: 1px solid var(--hair); position: relative; overflow: hidden; flex: none; }
+  .mini .ph { position: absolute; left: 8px; right: 8px; top: 8px; bottom: 30px; border-radius: 6px; background: linear-gradient(160deg, #2a2a27, #1c1c1a); }
+  .mini .ln { position: absolute; left: 8px; height: 4px; border-radius: 2px; background: #2c2c29; }
+  .mini .pill { position: absolute; right: 6px; top: 6px; padding: 2px 5px; border-radius: 999px; background: rgba(13,13,12,.9); color: var(--acc, var(--amber)); font: 600 7px/1.2 var(--mono); border: 1px solid color-mix(in srgb, var(--acc, var(--amber)) 40%, transparent); }
+  .mini .cover { position: absolute; inset: 0; background: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+  .cat { width: 30px; height: 26px; border-radius: 7px 7px 10px 10px; background: #E0913C; position: relative; }
+  .cat::before, .cat::after { content: ""; position: absolute; top: -6px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 8px solid #E0913C; }
+  .cat::before { left: 2px; } .cat::after { right: 2px; }
+  .cat i { position: absolute; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: #0D0D0C; }
+  .cat i:first-child { left: 8px; } .cat i:last-child { right: 8px; }
+  .mini .cover b { font-size: 7px; color: var(--green); letter-spacing: .06em; font-weight: 600; }
+
+  /* stacked rows, accordion. --acc is the rung colour of the chosen limit. */
+  .row { border-radius: 22px; border: 1.5px solid var(--hair); background: var(--panel); padding: 16px; display: flex; flex-direction: column; }
+  .row.on { border-color: var(--acc); background: color-mix(in srgb, var(--acc) 6%, var(--panel)); }
+  .row + .row { margin-top: 12px; }
+  .rhead { display: flex; align-items: center; gap: 14px; }
+  .rtext { flex: 1; min-width: 0; }
+  .rtext h3 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.3px; }
+  .rtext p { margin: 3px 0 0; font-size: 13px; line-height: 17px; color: var(--ash); }
+  .radio { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--dim); flex: none; display: grid; place-items: center; }
+  .radio.on { border-color: var(--acc); } .radio.on::after { content: ""; width: 11px; height: 11px; border-radius: 50%; background: var(--acc); }
+  .expand { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--hair); }
+  .read { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .read b { font-size: 54px; line-height: 52px; font-weight: 700; letter-spacing: -2px; color: var(--acc); }
+  .read span { font-size: 15px; color: var(--ash); }
+  .track { position: relative; height: 44px; margin-top: 10px; }
+  .track .line { position: absolute; left: 6px; right: 6px; top: 13px; height: 2px; border-radius: 1px;
+    background: linear-gradient(90deg, var(--r5) 0%, var(--r10) 20%, var(--r15) 40%, var(--r30) 60%, var(--r45) 80%, var(--r60) 100%); opacity: .28; }
+  .track .fill { position: absolute; left: 6px; top: 13px; height: 2px; border-radius: 1px;
+    background: linear-gradient(90deg, var(--r5) 0%, var(--r10) 20%, var(--r15) 40%, var(--r30) 60%, var(--r45) 80%, var(--r60) 100%);
+    background-size: calc(100% / var(--w)) 100%; width: calc(var(--w) * 100%); }
+  .rung { position: absolute; top: 0; width: 28px; margin-left: -14px; text-align: center; }
+  .rung i { display: block; width: 8px; height: 8px; margin: 10px auto 0; border-radius: 50%; background: var(--c); opacity: .35; }
+  .rung.past i { opacity: 1; }
+  .rung.on i { width: 18px; height: 18px; margin-top: 5px; opacity: 1; box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 20%, transparent); }
+  .rung span { display: block; margin-top: 8px; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .rung.on span { color: var(--bone); font-weight: 600; }
+  .hint { margin-top: 6px; font-size: 12px; color: var(--dim); }
+  .facts { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .facts li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ash); line-height: 19px; }
+  .facts li i { width: 18px; height: 18px; border-radius: 50%; flex: none; margin-top: 1px; display: grid; place-items: center; background: rgba(56,199,134,.14); }
+  .facts li i::after { content: ""; width: 8px; height: 5px; border-left: 2px solid var(--green); border-bottom: 2px solid var(--green); transform: translateY(-1px) rotate(-45deg); }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>Guilt, or block? Direction A, with the limit ramp</h1>
+  <p>The track, the big number, the row border and the Guilt radio all take the colour of the chosen rung. It is the same curve the floating pill already uses in the app: calm under ten minutes, fully red by fifty. Asking for more time visibly costs more.</p>
+  <div class="ramp"></div>
+  <div class="rampl"><span>5</span><span>10</span><span>15</span><span>30</span><span>45</span><span>1h</span></div>
+</div>
+
+<div class="rail">
+
+  <!-- ============ 5 min ============ -->
+  <div class="slot">
+    <div class="phone" style="--acc: var(--r5)"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="body">
+        <h2 class="t">How should<br>Wilt step in?</h2>
+        <p class="s">Pick one. Change it anytime.</p>
+        <div class="row on" style="margin-top:26px">
+          <div class="rhead">
+            <div class="mini"><div class="ph"></div><div class="ln" style="top:70px;width:34px"></div><div class="ln" style="top:78px;width:22px"></div><div class="pill">4m left</div></div>
+            <div class="rtext"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div>
+            <div class="radio on"></div>
+          </div>
+          <div class="expand">
+            <div class="kicker">Daily limit</div>
+            <div class="read"><b class="tab">5</b><span>minutes</span></div>
+            <div class="track">
+              <div class="line"></div><div class="fill" style="--w:0.001"></div>
+              <div class="rung on" style="left:6px;--c:var(--r5)"><i></i><span>5</span></div>
+              <div class="rung" style="left:20%;--c:var(--r10)"><i></i><span>10</span></div>
+              <div class="rung" style="left:40%;--c:var(--r15)"><i></i><span>15</span></div>
+              <div class="rung" style="left:60%;--c:var(--r30)"><i></i><span>30</span></div>
+              <div class="rung" style="left:80%;--c:var(--r45)"><i></i><span>45</span></div>
+              <div class="rung" style="left:calc(100% - 6px);--c:var(--r60)"><i></i><span>1h</span></div>
+            </div>
+            <div class="hint">The tightest rung. Nothing left to earn.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="rhead">
+            <div class="mini"><div class="cover"><div class="cat"><i></i><i></i></div><b>WALLED</b></div></div>
+            <div class="rtext"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="cta">Continue</div>
+    </div></div>
+    <div class="cap"><b>5 minutes · green</b>The floor. Green is the only place the Guilt row ever shares a colour with Block.</div>
+  </div>
+
+  <!-- ============ 15 min ============ -->
+  <div class="slot">
+    <div class="phone" style="--acc: var(--r15)"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="body">
+        <h2 class="t">How should<br>Wilt step in?</h2>
+        <p class="s">Pick one. Change it anytime.</p>
+        <div class="row on" style="margin-top:26px">
+          <div class="rhead">
+            <div class="mini"><div class="ph"></div><div class="ln" style="top:70px;width:34px"></div><div class="ln" style="top:78px;width:22px"></div><div class="pill">9m left</div></div>
+            <div class="rtext"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div>
+            <div class="radio on"></div>
+          </div>
+          <div class="expand">
+            <div class="kicker">Daily limit</div>
+            <div class="read"><b class="tab">15</b><span>minutes</span></div>
+            <div class="track">
+              <div class="line"></div><div class="fill" style="--w:0.4"></div>
+              <div class="rung past" style="left:6px;--c:var(--r5)"><i></i><span>5</span></div>
+              <div class="rung past" style="left:20%;--c:var(--r10)"><i></i><span>10</span></div>
+              <div class="rung on" style="left:40%;--c:var(--r15)"><i></i><span>15</span></div>
+              <div class="rung" style="left:60%;--c:var(--r30)"><i></i><span>30</span></div>
+              <div class="rung" style="left:80%;--c:var(--r45)"><i></i><span>45</span></div>
+              <div class="rung" style="left:calc(100% - 6px);--c:var(--r60)"><i></i><span>1h</span></div>
+            </div>
+            <div class="hint">Clean weeks earn a rung down.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="rhead">
+            <div class="mini"><div class="cover"><div class="cat"><i></i><i></i></div><b>WALLED</b></div></div>
+            <div class="rtext"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="cta">Continue</div>
+    </div></div>
+    <div class="cap"><b>15 minutes · yellow</b>Past the calm zone. The fill behind the thumb keeps the rungs it has passed in their own colours.</div>
+  </div>
+
+  <!-- ============ 30 min (default) ============ -->
+  <div class="slot">
+    <div class="phone" style="--acc: var(--r30)"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="body">
+        <h2 class="t">How should<br>Wilt step in?</h2>
+        <p class="s">Pick one. Change it anytime.</p>
+        <div class="row on" style="margin-top:26px">
+          <div class="rhead">
+            <div class="mini"><div class="ph"></div><div class="ln" style="top:70px;width:34px"></div><div class="ln" style="top:78px;width:22px"></div><div class="pill">12m left</div></div>
+            <div class="rtext"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div>
+            <div class="radio on"></div>
+          </div>
+          <div class="expand">
+            <div class="kicker">Daily limit</div>
+            <div class="read"><b class="tab">30</b><span>minutes</span></div>
+            <div class="track">
+              <div class="line"></div><div class="fill" style="--w:0.6"></div>
+              <div class="rung past" style="left:6px;--c:var(--r5)"><i></i><span>5</span></div>
+              <div class="rung past" style="left:20%;--c:var(--r10)"><i></i><span>10</span></div>
+              <div class="rung past" style="left:40%;--c:var(--r15)"><i></i><span>15</span></div>
+              <div class="rung on" style="left:60%;--c:var(--r30)"><i></i><span>30</span></div>
+              <div class="rung" style="left:80%;--c:var(--r45)"><i></i><span>45</span></div>
+              <div class="rung" style="left:calc(100% - 6px);--c:var(--r60)"><i></i><span>1h</span></div>
+            </div>
+            <div class="hint">Clean weeks earn a rung down.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="rhead">
+            <div class="mini"><div class="cover"><div class="cat"><i></i><i></i></div><b>WALLED</b></div></div>
+            <div class="rtext"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="cta">Continue</div>
+    </div></div>
+    <div class="cap"><b>30 minutes · amber (default)</b>What a first-run user sees. Amber is the app's existing "time burned" colour, so the default lands exactly on the palette the dashboard uses.</div>
+  </div>
+
+  <!-- ============ 60 min ============ -->
+  <div class="slot">
+    <div class="phone" style="--acc: var(--r60)"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="body">
+        <h2 class="t">How should<br>Wilt step in?</h2>
+        <p class="s">Pick one. Change it anytime.</p>
+        <div class="row on" style="margin-top:26px">
+          <div class="rhead">
+            <div class="mini"><div class="ph"></div><div class="ln" style="top:70px;width:34px"></div><div class="ln" style="top:78px;width:22px"></div><div class="pill">41m left</div></div>
+            <div class="rtext"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div>
+            <div class="radio on"></div>
+          </div>
+          <div class="expand">
+            <div class="kicker">Daily limit</div>
+            <div class="read"><b class="tab">60</b><span>minutes</span></div>
+            <div class="track">
+              <div class="line"></div><div class="fill" style="--w:1"></div>
+              <div class="rung past" style="left:6px;--c:var(--r5)"><i></i><span>5</span></div>
+              <div class="rung past" style="left:20%;--c:var(--r10)"><i></i><span>10</span></div>
+              <div class="rung past" style="left:40%;--c:var(--r15)"><i></i><span>15</span></div>
+              <div class="rung past" style="left:60%;--c:var(--r30)"><i></i><span>30</span></div>
+              <div class="rung past" style="left:80%;--c:var(--r45)"><i></i><span>45</span></div>
+              <div class="rung on" style="left:calc(100% - 6px);--c:var(--r60)"><i></i><span>1h</span></div>
+            </div>
+            <div class="hint">An hour a day is seven a week.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="rhead">
+            <div class="mini"><div class="cover"><div class="cat"><i></i><i></i></div><b>WALLED</b></div></div>
+            <div class="rtext"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="cta">Continue</div>
+    </div></div>
+    <div class="cap"><b>1 hour · red</b>The top of the ladder. Red is otherwise reserved for "over the limit", which is the point: an hour is already the outcome the app is warning about.</div>
+  </div>
+
+  <!-- ============ Block ============ -->
+  <div class="slot">
+    <div class="phone" style="--acc: var(--green)"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div></div>
+      <div class="body">
+        <h2 class="t">How should<br>Wilt step in?</h2>
+        <p class="s">Pick one. Change it anytime.</p>
+        <div class="row" style="margin-top:26px">
+          <div class="rhead">
+            <div class="mini" style="--acc: var(--r30)"><div class="ph"></div><div class="ln" style="top:70px;width:34px"></div><div class="ln" style="top:78px;width:22px"></div><div class="pill">12m left</div></div>
+            <div class="rtext"><h3>Guilt</h3><p>A timer floats over the feed. At your limit, a cat takes over.</p></div>
+            <div class="radio"></div>
+          </div>
+        </div>
+        <div class="row on">
+          <div class="rhead">
+            <div class="mini"><div class="cover"><div class="cat"><i></i><i></i></div><b>WALLED</b></div></div>
+            <div class="rtext"><h3>Block</h3><p>Reels and Shorts stay walled, all day.</p></div>
+            <div class="radio on"></div>
+          </div>
+          <div class="expand">
+            <ul class="facts">
+              <li><i></i>Instagram and YouTube still open. Only the reels are covered.</li>
+              <li><i></i>No timer, no limit to set. Nothing to negotiate with.</li>
+              <li><i></i>Switch back to Guilt from the home screen whenever you like.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div>
+      <div class="cta">Continue</div>
+    </div></div>
+    <div class="cap"><b>Block</b>Unchanged from before. Block is always green: it is the safe end of the same scale.</div>
+  </div>
+
+</div>
+
+<div class="notes">
+  <h2>How the ramp works</h2>
+  <ul>
+    <li><b>One colour per rung,</b> not a continuous slider. Six fixed stops keep the values on the ladder and each stop has a name in the palette.</li>
+    <li><b>Everything selected takes the rung's colour:</b> number, thumb, row border and tint, the Guilt radio, and the timer pill in the little preview. Nothing else on the page is coloured, so the shift is impossible to miss.</li>
+    <li><b>Passed rungs keep their own colour</b> in the fill, so at 45 the track reads green, green, yellow, amber, orange under the thumb. The path there is visible.</li>
+    <li><b>Block stays green</b> regardless. It sits at the safe end of the same scale, which is the argument for choosing it.</li>
+    <li>In React Native this is a plain View track with six Pressables and a colour picked from a six-entry table. No slider dependency, no gradient library, no native rebuild.</li>
+  </ul>
+</div>
+
+</body>
+</html>

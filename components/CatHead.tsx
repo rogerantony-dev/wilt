@@ -5,7 +5,7 @@ import { catHead, type Eye } from "./catdecay";
 /**
  * The cat's head, drawn in its own 256 x 256 box from the [catHead] model, so
  * it looks exactly like the pill and widget frames. Place it with a parent
- * <G transform> (see KitCatClock). `eyes` lets the caller wrap the eye group,
+ * <G transform> (see DiscHero). `eyes` lets the caller wrap the eye group,
  * so the clock can hand it an Animated <G> that darts.
  */
 export function CatHead({

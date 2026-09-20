@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Wilt sleeker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --ink:#0D0D0C; --ink2:#141413; --panel:#1A1A18; --panelhi:#2C2C29;
+    --bone:#F2F1EC; --ash:#9A9A92; --dim:#62625B; --hair:rgba(242,241,236,.10);
+    --green:#38C786; --amber:#E0913C; --red:#D2542F; --board:#171716;
+    --sans:-apple-system,"SF Pro Display","SF Pro Text",Roboto,"Segoe UI",system-ui,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:var(--board);color:var(--bone);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .bar{padding:36px 40px 10px} .bar h1{margin:0;font-size:22px;font-weight:600;letter-spacing:-.3px}
+  .bar p{margin:6px 0 0;color:var(--ash);max-width:78ch}
+  .rail{display:flex;flex-wrap:wrap;gap:44px 34px;padding:20px 40px 30px}
+  .slot{flex:0 0 auto} .cap{width:390px;margin-top:14px;font-size:12px;color:var(--ash)}
+  .cap b{display:block;color:var(--bone);font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:11px;margin-bottom:4px}
+  .cap.rec b::after{content:"recommended";margin-left:10px;padding:2px 8px;border-radius:999px;background:rgba(56,199,134,.14);color:var(--green);letter-spacing:.04em;font-size:10px}
+  .notes{padding:0 40px 60px;color:var(--ash);max-width:82ch}
+  .notes h2{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:26px 0 10px}
+  .notes li{margin:7px 0} .notes b{color:var(--bone);font-weight:600}
+  .phone{width:390px;height:844px;border-radius:48px;overflow:hidden;position:relative;background:var(--ink);box-shadow:0 30px 70px rgba(0,0,0,.45),0 0 0 10px #101010,0 0 0 12px #2a2a27}
+  .scr{position:absolute;inset:0;display:flex;flex-direction:column;padding:58px 22px 26px}
+  .top{display:flex;align-items:center;justify-content:space-between;height:28px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:15px;letter-spacing:-.2px}
+  .brand i{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}
+  .chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;background:var(--panel);font-size:12.5px;color:var(--ash)}
+  .chip b{color:var(--bone);font-weight:600}
+  .tab{font-variant-numeric:tabular-nums}
+  .tray{display:flex;gap:10px;margin-top:auto}
+  .tray div{flex:1;height:52px;border-radius:16px;background:var(--panel);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:15px}
+  .seg{display:flex;padding:4px;border-radius:16px;background:var(--panel)}
+  .seg div{flex:1;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:15px;color:var(--ash)}
+  .seg div.on{background:var(--panelhi);color:var(--bone)}
+  .cat{width:64px;height:56px;border-radius:14px 14px 22px 22px;background:#2b2b28;position:relative;flex:none}
+  .cat::before,.cat::after{content:"";position:absolute;top:-10px;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:15px solid #2b2b28}
+  .cat::before{left:6px}.cat::after{right:6px}
+  .cat i{position:absolute;top:20px;width:9px;height:9px;border-radius:50%;background:#F2F1EC}
+  .cat i:first-child{left:17px}.cat i:last-child{right:17px}
+  .cat u{position:absolute;left:50%;top:34px;width:10px;height:5px;margin-left:-5px;border-bottom:2px solid var(--green);border-radius:0 0 6px 6px}
+
+  /* A · Dial */
+  .dial{position:relative;width:300px;height:300px;margin:26px auto 0}
+  .dial > svg{position:absolute;inset:0}
+  .realcat svg{width:100%;height:100%;display:block}
+  .dial .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+  .dial .num{font-size:84px;line-height:80px;font-weight:700;letter-spacing:-4px}
+  .dial .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .glow{position:absolute;left:50%;top:230px;width:420px;height:420px;margin-left:-210px;border-radius:50%;background:radial-gradient(circle,rgba(56,199,134,.16),rgba(56,199,134,0) 62%);pointer-events:none}
+  .stats{display:flex;gap:10px;margin-top:22px}
+  .stats div{flex:1;padding:14px 14px 12px;border-radius:18px;background:var(--panel)}
+  .stats b{display:block;font-size:22px;font-weight:700;letter-spacing:-.6px}
+  .stats span{display:block;font-size:11px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-top:2px}
+
+  /* B · Editorial */
+  .ed .big{margin-top:36px;font-size:148px;line-height:126px;font-weight:700;letter-spacing:-9px;color:var(--amber)}
+  .ed .sub{font-size:20px;font-weight:600;letter-spacing:-.3px;margin-top:8px}
+  .ed .sub span{color:var(--dim);font-weight:500}
+  .ed .rule{height:1px;background:var(--hair);margin:22px 0 14px}
+  .ed .row{display:flex;justify-content:space-between;align-items:baseline;padding:10px 0;border-bottom:1px solid var(--hair);font-size:14px;color:var(--ash)}
+  .ed .row b{color:var(--bone);font-weight:600;font-family:var(--mono);font-size:15px}
+  .ed .ticker{display:flex;gap:6px;align-items:flex-end;height:44px;margin-top:18px}
+  .ed .ticker i{flex:1;background:var(--panelhi);border-radius:3px 3px 0 0}
+  .ed .ticker i.t{background:var(--bone)}
+
+  /* C · Bento */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+  .tile{border-radius:22px;background:var(--panel);padding:16px;min-height:118px;position:relative;overflow:hidden}
+  .tile.w{grid-column:1/-1}.tile.tall{grid-row:span 2;min-height:246px}
+  .tile .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .tile .v{font-size:34px;font-weight:700;letter-spacing:-1.2px;margin-top:6px;line-height:1}
+  .tile .s{font-size:12.5px;color:var(--ash);margin-top:6px}
+  .tile.hero{background:linear-gradient(160deg,#1f1f1c,#141413)}
+  .tile.hero .v{font-size:64px;letter-spacing:-3px;color:var(--amber)}
+  .tile.photo{padding:0;background:linear-gradient(160deg,#c9a27a,#8e6a4a)}
+  .tile.photo .cap2{position:absolute;left:14px;bottom:12px;font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .tile .ring{position:absolute;right:-24px;top:-24px;width:120px;height:120px;border-radius:50%;border:10px solid rgba(56,199,134,.18);border-top-color:var(--green);transform:rotate(-40deg)}
+  .tile .seg{margin-top:12px}
+
+  /* D · Ambient */
+  .amb{background:radial-gradient(120% 70% at 50% 108%,rgba(56,199,134,.42),rgba(56,199,134,0) 60%),var(--ink)}
+  .amb .num{margin-top:96px;text-align:center;font-size:120px;line-height:110px;font-weight:700;letter-spacing:-6px}
+  .amb .lbl{text-align:center;color:var(--ash);font-size:16px;margin-top:8px}
+  .amb .catbig{width:150px;height:130px;margin:54px auto 0;border-radius:34px 34px 54px 54px;background:#2b2b28;position:relative}
+  .amb .catbig::before,.amb .catbig::after{content:"";position:absolute;top:-24px;border-left:26px solid transparent;border-right:26px solid transparent;border-bottom:36px solid #2b2b28}
+  .amb .catbig::before{left:12px}.amb .catbig::after{right:12px}
+  .amb .catbig i{position:absolute;top:48px;width:20px;height:20px;border-radius:50%;background:#F2F1EC}
+  .amb .catbig i:first-child{left:38px}.amb .catbig i:last-child{right:38px}
+  .amb .catbig u{position:absolute;left:50%;top:82px;width:24px;height:12px;margin-left:-12px;border-bottom:3px solid var(--green);border-radius:0 0 14px 14px}
+  .amb .pills{display:flex;gap:8px;justify-content:center;margin-top:auto}
+  .amb .pills div{height:44px;padding:0 18px;border-radius:999px;background:rgba(242,241,236,.08);backdrop-filter:blur(10px);display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;border:1px solid rgba(242,241,236,.10)}
+  .amb .pills div.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+
+  /* A+D mix */
+  .mix .scr{padding:58px 22px 24px}
+  .mix .glass{background:rgba(242,241,236,.06);border:1px solid rgba(242,241,236,.10)}
+  .mix .dial{margin-top:22px}
+  .mix .tiles{display:flex;gap:10px;margin-top:22px}
+  .mix .tiles div{flex:1;padding:12px 14px 10px;border-radius:16px}
+  .mix .tiles b{display:block;font-size:22px;font-weight:700;letter-spacing:-.6px;line-height:26px}
+  .mix .tiles span{display:block;font-size:10.5px;color:var(--dim);letter-spacing:.09em;text-transform:uppercase;font-weight:600;margin-top:1px}
+  .mix .seg{background:rgba(242,241,236,.06);border:1px solid rgba(242,241,236,.10);margin-top:20px}
+  .mix .seg div.on{background:var(--panelhi)}
+  .mix .desc{font-size:13.5px;color:var(--ash);margin-top:10px;min-height:40px}
+  .mix .tray{margin-top:auto;padding-top:14px}
+  .mix .tray div{background:rgba(242,241,236,.06);border:1px solid rgba(242,241,236,.10)}
+  .mix .field{position:absolute;left:-40%;right:-40%;bottom:-38%;height:90%;border-radius:50%;pointer-events:none}
+  .mix .field.g{background:radial-gradient(ellipse at 50% 100%,rgba(56,199,134,.38),rgba(56,199,134,.12) 45%,rgba(56,199,134,0) 70%)}
+  .mix .field.a{background:radial-gradient(ellipse at 50% 100%,rgba(224,145,60,.38),rgba(224,145,60,.12) 45%,rgba(224,145,60,0) 70%)}
+  .mix .field.r{background:radial-gradient(ellipse at 50% 100%,rgba(210,84,47,.42),rgba(210,84,47,.14) 45%,rgba(210,84,47,0) 70%)}
+  .mix .alert{display:flex;align-items:center;gap:10px;height:52px;padding:0 16px;border-radius:16px;font-size:14px;color:var(--ash);font-weight:500}
+  .mix .outl{display:flex;align-items:center;justify-content:center;gap:8px;height:52px;border-radius:16px;font-weight:600;font-size:14px}
+
+  .mix .wall{display:flex;flex-direction:column;align-items:center;margin-top:26px}
+  .mix .disc{position:relative;width:236px;height:236px;border-radius:50%;background:radial-gradient(circle at 50% 42%,#2b6f52,#1a4a37 70%,#153d2e);box-shadow:0 0 0 14px rgba(56,199,134,.10),0 0 0 28px rgba(56,199,134,.05),0 30px 60px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center}
+  .mix .disc .lids{position:absolute;left:43px;top:43px;width:150px;height:150px;pointer-events:none}
+  .mix .sleep svg .eyes{display:none}
+  .mix .zz{position:absolute;right:38px;top:34px;font-weight:700;color:var(--green);font-size:22px;line-height:1;letter-spacing:-1px}
+  .mix .zz span{font-size:14px;position:relative;top:-14px;left:2px;opacity:.7}
+  .mix .wtitle{margin-top:20px;font-size:26px;font-weight:700;letter-spacing:-.6px}
+  .mix .wsub{font-size:13.5px;color:var(--ash);margin-top:4px}
+  .mix .wpill{margin-top:12px;height:34px;padding:0 14px;border-radius:999px;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ash)}
+  .mix .wpill b{color:var(--bone);font-size:15px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Wilt, sleeker. Four directions for the home screen</h1>
+  <p>Same Quiet system underneath: ink canvas, bone text, green only for safe, amber for time burned. Each phone pushes one idea further. Pick a direction, or pieces from several, and I will build it on the PanelUI components already in the app.</p>
+</div>
+
+<div class="rail">
+
+  <!-- A · Dial -->
+  <div class="slot">
+    <div class="phone"><div class="scr" style="position:absolute">
+      <div class="glow"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip">Limit <b>30m</b> ⌄</div></div>
+      <div class="dial">
+        <svg viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="132" fill="none" stroke="rgba(242,241,236,.08)" stroke-width="14"/>
+          <circle cx="150" cy="150" r="132" fill="none" stroke="#38C786" stroke-width="14" stroke-linecap="round" stroke-dasharray="829" stroke-dashoffset="207" transform="rotate(-90 150 150)"/>
+          <circle cx="150" cy="150" r="112" fill="none" stroke="rgba(242,241,236,.05)" stroke-width="1"/>
+        </svg>
+        <div class="mid">
+          <div class="realcat" data-t="0.05" style="width:92px;height:92px;margin-bottom:-10px"></div>
+          <div class="num tab">22</div>
+          <div class="lbl">min left of 30</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div><b class="tab">8</b><span>wasted</span></div>
+        <div><b class="tab">3</b><span>days clean</span></div>
+        <div><b class="tab">150</b><span>points</span></div>
+      </div>
+      <div class="seg" style="margin-top:18px"><div class="on">◔ Guilt</div><div>⛨ Block</div></div>
+      <div class="tray"><div>🐾 Cats</div><div>▥ History</div></div>
+    </div></div>
+    <div class="cap rec"><b>A · The dial</b>One object owns the screen: a ring that drains as you scroll, with the cat inside it. The ring and a soft floor glow take the rung colour (green, amber, red) so the mood is readable from across the room. Stats become three quiet tiles.</div>
+  </div>
+
+  <!-- B · Editorial -->
+  <div class="slot">
+    <div class="phone"><div class="scr ed">
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip">Limit <b>30m</b> ⌄</div></div>
+      <div class="big tab">08</div>
+      <div class="sub">minutes wasted <span>· 22 left</span></div>
+      <div class="rule"></div>
+      <div class="row"><span>Reels</span><b class="tab">14</b></div>
+      <div class="row"><span>Shorts</span><b class="tab">03</b></div>
+      <div class="row"><span>Streak</span><b class="tab">3d</b></div>
+      <div class="row" style="border:0"><span>Points</span><b class="tab">150 <span style="color:var(--green);font-size:12px">+42</span></b></div>
+      <div class="ticker"><i style="height:30%"></i><i style="height:55%"></i><i style="height:20%"></i><i style="height:70%"></i><i style="height:40%"></i><i style="height:15%"></i><i class="t" style="height:27%"></i></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:.08em"><span>MON</span><span>TODAY</span></div>
+      <div class="seg" style="margin-top:auto"><div class="on">Guilt</div><div>Block</div></div>
+      <div class="tray" style="margin-top:10px"><div>Cats</div><div>History</div></div>
+    </div></div>
+    <div class="cap"><b>B · Editorial</b>Type does the work. One enormous tabular number, a ledger of hairline rows in monospace figures, and last week as a tiny sparkline under it. No cards at all. The most "designed" and the cheapest to build.</div>
+  </div>
+
+  <!-- C · Bento -->
+  <div class="slot">
+    <div class="phone"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip">Limit <b>30m</b> ⌄</div></div>
+      <div class="grid">
+        <div class="tile hero w"><div class="k">Wasted today</div><div class="v tab">8<span style="font-size:22px;letter-spacing:0;color:var(--dim);font-weight:500"> min</span></div><div class="s">Clock's clean. 22 minutes left.</div><div class="ring"></div></div>
+        <div class="tile tall" style="display:flex;flex-direction:column;justify-content:space-between"><div><div class="k">Kit-Cat</div><div class="s" style="margin-top:2px">Fresh</div></div><div class="realcat" data-t="0.05" style="width:118px;height:118px;align-self:center;margin:10px 0"></div><div class="s">Stop early and it stays a cat.</div></div>
+        <div class="tile"><div class="k">Streak</div><div class="v tab">3<span style="font-size:16px;letter-spacing:0;color:var(--dim)">d</span></div><div class="s">best 9</div></div>
+        <div class="tile"><div class="k">Points</div><div class="v tab">150</div><div class="s" style="color:var(--green)">+42 today</div></div>
+        <div class="tile photo w" style="min-height:96px"><div class="cap2">Next cat at 250 pts</div></div>
+        <div class="tile w" style="min-height:0;padding:10px"><div class="seg" style="margin:0"><div class="on">◔ Guilt</div><div>⛨ Block</div></div></div>
+      </div>
+      <div class="tray" style="margin-top:12px"><div>🐾 Cats</div><div>▥ History</div></div>
+    </div></div>
+    <div class="cap"><b>C · Bento</b>Everything becomes a tile on the surface ladder, widget-style. Each tile is a tap target into its sheet (streak opens History, the photo opens Cats). Dense, glanceable, and it maps 1:1 onto PanelUI's Surface and Item.</div>
+  </div>
+
+  <!-- D · Ambient -->
+  <div class="slot">
+    <div class="phone amb"><div class="scr">
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip" style="background:rgba(242,241,236,.08)">30m ⌄</div></div>
+      <div class="num tab">22</div>
+      <div class="lbl">minutes left</div>
+      <div class="realcat" data-t="0.05" style="width:210px;height:210px;margin:34px auto 0"></div>
+      <div class="pills"><div class="on">◔ Guilt</div><div>⛨ Block</div><div>🐾</div><div>▥</div></div>
+    </div></div>
+    <div class="cap"><b>D · Ambient</b>Almost nothing on screen. A colour field rises from the bottom and shifts with the ramp as the day burns, the cat is large and alive (blinks, tail sway, wilts), and every control is a floating glass pill. Feels like a companion, not a dashboard.</div>
+  </div>
+
+</div>
+
+
+<div class="bar" style="padding-top:20px">
+  <h1>A + D, mixed. Every dashboard state</h1>
+  <p>The dial from A on the ambient field from D. Ring, number and field all take the rung colour; the cards become glass tiles that float on the field. The three states below are the only ones the home screen has.</p>
+</div>
+<div class="rail">
+
+  <div class="slot">
+    <div class="phone mix"><div class="scr">
+      <div class="field g"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip glass">Limit <b>30m</b> ⌄</div></div>
+      <div class="dial">
+        <svg viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="132" fill="none" stroke="rgba(242,241,236,.08)" stroke-width="14"/>
+          <circle cx="150" cy="150" r="132" fill="none" stroke="#38C786" stroke-width="14" stroke-linecap="round" stroke-dasharray="829" stroke-dashoffset="224" transform="rotate(-90 150 150)"/>
+          <circle cx="150" cy="150" r="112" fill="none" stroke="rgba(242,241,236,.05)" stroke-width="1"/>
+        </svg>
+        <div class="mid">
+          <div class="realcat" data-t="0.05" style="width:92px;height:92px;margin-bottom:-10px"></div>
+          <div class="num tab" style="color:#38C786">22</div>
+          <div class="lbl">min left of 30</div>
+        </div>
+      </div>
+      <div class="tiles"><div class="glass"><b class="tab">8</b><span>wasted</span></div><div class="glass"><b class="tab">3</b><span>days clean</span></div><div class="glass"><b class="tab">150</b><span>pts · +42</span></div></div>
+      <div class="seg"><div class="on">◔ Guilt</div><div>⛨ Block</div></div><div class="desc">Guilt. Watch all you want, the clock keeps time.</div>
+      <div class="tray"><div>🐾 Cats</div><div>▥ History</div></div>
+    </div></div>
+
+    <div class="cap"><b>Guilt</b>Ring drains with the budget, cat wilts through the six stages, field warms from green to amber to red. Tiles: wasted, streak, points (with today's pending).</div>
+  </div>
+
+  <div class="slot">
+    <div class="phone mix"><div class="scr">
+      <div class="field g"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip glass">Limit <b>30m</b> ⌄</div></div>
+      <div class="wall">
+        <div class="disc">
+          <div class="realcat sleep" data-t="0.02" style="width:150px;height:150px"></div>
+          <svg class="lids" viewBox="0 0 256 256"><path d="M86 130 q16 12 32 0 M138 130 q16 12 32 0" fill="none" stroke="#0D0D0C" stroke-width="7" stroke-linecap="round"/></svg>
+          <div class="zz">z<span>z</span></div>
+        </div>
+        <div class="wtitle">Walled off.</div>
+        <div class="wsub">Reels can't reach you till midnight.</div>
+        <div class="wpill glass"><b class="tab">14</b> reels bounced today</div>
+      </div>
+      <div class="tiles"><div class="glass"><b class="tab">0</b><span>wasted</span></div><div class="glass"><b class="tab">3</b><span>days clean</span></div><div class="glass"><b class="tab">150</b><span>pts · +50</span></div></div>
+      <div class="seg"><div>◔ Guilt</div><div class="on" style="color:var(--bone)"><span style="color:var(--green)">⛨</span> Block</div></div><div class="desc">Block. Wilt backs you out of every reel and short.</div>
+      <div class="tray"><div>🐾 Cats</div><div>▥ History</div></div>
+    </div></div>
+    <div class="cap"><b>Block</b>No ring, because there is nothing to drain. A solid green disc with the cat asleep on it and a soft breathing halo; the count drops to a pill. Same field, same tiles, but the object in the middle is unmistakably a different state.</div>
+  </div>
+
+  <div class="slot">
+    <div class="phone mix"><div class="scr">
+      <div class="field r"></div>
+      <div class="top"><div class="brand"><i></i>Wilt</div><div class="chip glass">Limit <b>30m</b> ⌄</div></div>
+      <div class="dial">
+        <svg viewBox="0 0 300 300">
+          <circle cx="150" cy="150" r="132" fill="none" stroke="rgba(242,241,236,.08)" stroke-width="14"/>
+          <circle cx="150" cy="150" r="132" fill="none" stroke="#D2542F" stroke-width="14" stroke-linecap="round" stroke-dasharray="829" stroke-dashoffset="829" transform="rotate(-90 150 150)"/>
+          <circle cx="150" cy="150" r="112" fill="none" stroke="rgba(242,241,236,.05)" stroke-width="1"/>
+        </svg>
+        <div class="mid">
+          <div class="realcat" data-t="1.0" style="width:92px;height:92px;margin-bottom:-10px"></div>
+          <div class="num tab" style="color:#D2542F">31</div>
+          <div class="lbl">min · walled till midnight</div>
+        </div>
+      </div>
+      <div class="tiles"><div class="glass"><b class="tab">31</b><span>wasted</span></div><div class="glass"><b class="tab">0</b><span>days clean</span></div><div class="glass"><b class="tab">150</b><span>points</span></div></div>
+      <div class="outl glass" style="margin-top:20px">＋ 1 more minute <span style="color:var(--dim);font-size:12px;font-weight:500">· 2 left</span></div><div class="alert glass" style="margin-top:10px">🔒 Blocked · unlocks at midnight</div>
+      <div class="tray"><div>🐾 Cats</div><div>▥ History</div></div>
+    </div></div>
+
+    <div class="cap"><b>Limit reached</b>Ring empty, field red, the cat is gone. The island is replaced by the grace-minute button and the blocked notice, same as today.</div>
+  </div>
+</div>
+<div class="notes">
+  <h2>Sleek details that apply to any of them</h2>
+  <ul>
+    <li><b>Numbers roll.</b> The big count animates digit-by-digit when it changes (PanelUI's text-animation has this), instead of snapping.</li>
+    <li><b>One accent at a time.</b> The rung colour (green, amber, red) drives the ring, the glow, the number, and the pill. Nothing else on the screen is coloured.</li>
+    <li><b>Surface ladder, no borders.</b> Depth from three tonal steps (ink, panel, panelhi) and nothing else. Hairlines only inside lists.</li>
+    <li><b>Haptics on every commit.</b> Selection tick on rung and tab changes, a soft knock when a sheet catches. Already wired in the slider and sheet.</li>
+    <li><b>Living cat.</b> Blink every few seconds, tail sway, eyes follow the time-left ring. It already exists in the onboarding send-off; bring it home.</li>
+    <li><b>Sheets with material.</b> Frosted backdrop (expo-blur, one install), grabber that brightens while dragged, and content that fades in a beat after the sheet lands.</li>
+    <li><b>Ambient status bar.</b> Tint the Android status and navigation bars to the canvas so the phone chrome disappears into the app.</li>
+    <li><b>Typography.</b> One display face for the numbers (Inter Tight or Geist Mono, tabular) would sharpen A, B and D noticeably. That is a font asset, no native rebuild.</li>
+  </ul>
+  <h2>My pick</h2>
+  <ul>
+    <li><b>A as the base, with B's ledger inside History and D's living cat.</b> The dial gives the screen one clear object, it reuses the ramp you already liked on the slider, and it needs only an SVG ring plus the tiles already in PanelUI.</li>
+  </ul>
+</div>
+<script src="rot-cat.js"></script>
+<script>
+  document.querySelectorAll('.realcat').forEach((el, i) => {
+    el.innerHTML = cat(parseFloat(el.dataset.t), { anim: false, id: 'sleek' + i });
+  });
+</script>
+</body>
+</html>
