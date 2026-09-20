@@ -1,0 +1,793 @@
+/*
+ * PanelUI theme — the semantic design tokens, translated for React Native.
+ *
+ * Every colour is a static rgba/hex value: native cannot evaluate
+ * color-mix() or --alpha() at runtime, so those expressions are precomputed
+ * here rather than shipped as-is.
+ *
+ * Structured the way Uniwind expects themed tokens (see uniwind's own
+ * test.css / expo-example): utility names declared in @theme, per-theme
+ * values defined with @variant blocks inside :root.
+ *
+ * Usage (in your app's global.css):
+ *   @import 'tailwindcss';
+ *   @import 'uniwind';
+ *   @import 'panelui-native/theme.css';
+ *   @source './node_modules/panelui-native/src';
+ */
+
+/*
+ * The named themes declare their own variants, so this file compiles on its
+ * own terms.
+ *
+ * `light` and `dark` exist wherever Uniwind does. The other four are extra
+ * themes, and their variants are otherwise only defined in the artifact
+ * Uniwind generates from the theme list in a project's Metro config — which
+ * that generation step has to compile *this file* to produce. A fresh install
+ * therefore had nothing defining `moon` at the moment it was first used: the
+ * dev server got away with it because it registers the themes in memory, while
+ * a production bundle failed with `Cannot use @variant with unknown variant`.
+ *
+ * Declared here, the cycle does not exist and neither does the difference
+ * between the two. Registering a theme in `extraThemes` is then only about
+ * being able to switch to it at runtime, which is what that option reads like
+ * it is for.
+ */
+@custom-variant moon (&:where(.moon, .moon *));
+@custom-variant moon-dark (&:where(.moon-dark, .moon-dark *));
+@custom-variant grass (&:where(.grass, .grass *));
+@custom-variant grass-dark (&:where(.grass-dark, .grass-dark *));
+
+@theme {
+  --color-background: unset;
+  --color-foreground: unset;
+  --color-card: unset;
+  --color-card-foreground: unset;
+  --color-popover: unset;
+  --color-popover-foreground: unset;
+  /*
+   * The floating-panel surface, one notch further from the page than
+   * `--color-popover`. A menu is the thing furthest forward on the screen and
+   * usually the thing on top of a popover, so it needs a step of its own —
+   * without one a menu opened over a popover disappears into it.
+   *
+   * Kept separate from the `--color-surface-*` ladder because that ladder
+   * describes depth *within* the page, and this describes leaving it.
+   */
+  --color-overlay: unset;
+  --color-overlay-foreground: unset;
+  /*
+   * A band set *into* a surface rather than raised off it — the footer of
+   * actions under a card or a dialog.
+   *
+   * A translucent black in every theme, rather than a colour of its own,
+   * because it has to come out darker than whatever it is drawn on and that
+   * changes: a card, a popover, or a surface the caller passed in. `--color-
+   * muted` cannot do this job — it is white in a dark theme, so the band it
+   * draws floats forward instead of sinking, which is the opposite of what a
+   * footer is saying.
+   */
+  --color-inset: unset;
+  --color-primary: unset;
+  --color-primary-foreground: unset;
+  --color-secondary: unset;
+  --color-secondary-foreground: unset;
+  --color-muted: unset;
+  --color-muted-foreground: unset;
+  --color-accent: unset;
+  --color-accent-foreground: unset;
+  --color-destructive: unset;
+  --color-destructive-foreground: unset;
+  --color-destructive-solid-foreground: unset;
+  --color-info: unset;
+  --color-info-foreground: unset;
+  --color-info-solid-foreground: unset;
+  --color-success: unset;
+  --color-success-foreground: unset;
+  --color-success-solid-foreground: unset;
+  --color-warning: unset;
+  --color-warning-foreground: unset;
+  --color-warning-solid-foreground: unset;
+  --color-border: unset;
+  --color-input: unset;
+  --color-ring: unset;
+  /*
+   * Elevation ladder. Each step sits one notch further from the page
+   * background than the last, so nesting Surfaces reads as hierarchy.
+   */
+  --color-surface: unset;
+  --color-surface-secondary: unset;
+  --color-surface-tertiary: unset;
+  --color-skeleton: unset;
+
+  /*
+   * Tinted status fills. These exist as real tokens rather than `bg-info/10
+   * dark:bg-info/[0.06]` because `dark:` only resolves in the light/dark
+   * themes — inside a named theme (moon, grass) Uniwind compiles it to a
+   * plain class selector that never matches, so the tint would vanish.
+   * `-soft` is the Alert fill, `-subtle` the lighter Badge fill.
+   */
+  --color-info-soft: unset;
+  --color-info-subtle: unset;
+  --color-success-soft: unset;
+  --color-success-subtle: unset;
+  --color-warning-soft: unset;
+  --color-warning-subtle: unset;
+  --color-destructive-soft: unset;
+  --color-destructive-subtle: unset;
+
+  /*
+   * Chart series. A separate ramp from the status colours because they answer
+   * a different question: a status colour means something (this failed, this
+   * is fine), a series colour only has to be told apart from the other four.
+   * Ordered by prominence — chart-1 is the series the chart is about, and each
+   * theme starts it on that family's own accent.
+   *
+   * These are the tokens to override in your app's global.css, after the
+   * `panelui-native/theme.css` import, to put a chart on brand.
+   */
+  /*
+   * Syntax colours, for CodeBlock. A ramp of their own rather than the chart
+   * series: those only have to be told apart from one another, while these
+   * have to be legible as small monospace on a muted panel and to keep their
+   * conventional associations — a string is warm, a comment recedes.
+   */
+  --color-code-keyword: unset;
+  --color-code-string: unset;
+  --color-code-number: unset;
+  --color-code-comment: unset;
+  --color-code-function: unset;
+  --color-code-property: unset;
+  --color-code-punctuation: unset;
+  --color-code-inserted: unset;
+  --color-code-deleted: unset;
+
+  --color-chart-1: unset;
+  --color-chart-2: unset;
+  --color-chart-3: unset;
+  --color-chart-4: unset;
+  --color-chart-5: unset;
+
+  /*
+   * Radius scale. Themed rather than static: a theme is a shape as well as a
+   * palette, so each family sets its own corner rounding. --radius-3xl is
+   * declared here because rounded-3xl / rounded-t-3xl are both in use and
+   * would otherwise silently fall through to Tailwind's default.
+   */
+  --radius-xs: unset;
+  --radius-sm: unset;
+  --radius-md: unset;
+  --radius-lg: unset;
+  --radius-xl: unset;
+  --radius-2xl: unset;
+  --radius-3xl: unset;
+
+  /*
+   * The monospace family. Declared because Tailwind's default is a *stack* —
+   * eight families separated by commas — and React Native takes fontFamily as
+   * one name. The whole list arrives at the platform as a single family that
+   * does not exist, so `font-mono` silently draws in the system font and code
+   * stops looking like code. One real name per platform is the fix.
+   *
+   * The four weight names are deliberately *not* declared here, and that is
+   * the mechanism by which an app changes the font. Tailwind resolves the
+   * `font-*` utility against `--font-*` before `--font-weight-*`, so leaving
+   * `--font-normal` and friends undefined is what keeps `font-semibold`
+   * meaning a weight. An app that defines them flips every one of those
+   * classes to a font family, which is the right trade on native: a weight
+   * there is a separately registered face, not a variation of one family.
+   * Declaring them here — even as `unset` — would take the weights away from
+   * every app that never asked for a custom font.
+   */
+  --font-mono: unset;
+}
+
+@layer theme {
+  :root {
+    /*
+     * Not themed — a platform's monospace face is a property of the platform,
+     * not of the palette. `Menlo` ships with iOS; `monospace` is Android's
+     * alias for its own. Neither exists on the other, which is why this cannot
+     * be one value.
+     */
+    @variant ios {
+      --font-mono: Menlo;
+    }
+    @variant android {
+      --font-mono: monospace;
+    }
+
+    @variant light {
+      --color-background: #ffffff;
+      /* neutral-800 */
+      --color-foreground: #262626;
+
+      --color-card: #ffffff;
+      --color-card-foreground: #262626;
+
+      --color-popover: #ffffff;
+      --color-popover-foreground: #262626;
+
+      --color-overlay: #ffffff;
+      --color-overlay-foreground: #262626;
+      /* the sunken band under a card or dialog: black at 3.5% */
+      --color-inset: rgba(0, 0, 0, 0.035);
+
+      --color-primary: #262626;
+      --color-primary-foreground: #fafafa;
+
+      /* secondary/muted/accent: black at 4% */
+      --color-secondary: rgba(0, 0, 0, 0.06);
+      --color-secondary-foreground: #262626;
+
+      --color-muted: rgba(0, 0, 0, 0.06);
+      /* color-mix(neutral-500 90%, black) */
+      --color-muted-foreground: #686868;
+
+      --color-accent: rgba(0, 0, 0, 0.06);
+      --color-accent-foreground: #262626;
+
+      /* status: {hue}-500, foreground {hue}-700 */
+      --color-destructive: #ef4444;
+      --color-destructive-foreground: #b91c1c;
+      --color-destructive-solid-foreground: #171717;
+
+      --color-info: #3b82f6;
+      --color-info-foreground: #1d4ed8;
+      --color-info-solid-foreground: #171717;
+
+      --color-success: #10b981;
+      --color-success-foreground: #047857;
+      --color-success-solid-foreground: #171717;
+
+      --color-warning: #f59e0b;
+      --color-warning-foreground: #b45309;
+      --color-warning-solid-foreground: #171717;
+
+      /* border: black 8%, input: black 10% */
+      --color-border: rgba(0, 0, 0, 0.08);
+      --color-input: rgba(0, 0, 0, 0.1);
+      /* neutral-400 */
+      --color-ring: #a3a3a3;
+
+      /* grouping surface (Frame) and skeleton fill */
+      --color-surface: #f7f7f7;
+      --color-surface-secondary: #f1f1f1;
+      --color-surface-tertiary: #eaeaea;
+      --color-skeleton: rgba(0, 0, 0, 0.1);
+
+      /* status fills: -soft = Alert (10%), -subtle = Badge (8%) */
+      --color-info-soft: rgba(59, 130, 246, 0.1);
+      --color-info-subtle: rgba(59, 130, 246, 0.08);
+      --color-success-soft: rgba(16, 185, 129, 0.1);
+      --color-success-subtle: rgba(16, 185, 129, 0.08);
+      --color-warning-soft: rgba(245, 158, 11, 0.1);
+      --color-warning-subtle: rgba(245, 158, 11, 0.08);
+      --color-destructive-soft: rgba(239, 68, 68, 0.1);
+      --color-destructive-subtle: rgba(239, 68, 68, 0.08);
+
+      /* syntax colours */
+      --color-code-keyword: #8250df;
+      --color-code-string: #0a7d55;
+      --color-code-number: #0550ae;
+      --color-code-comment: #8b949e;
+      --color-code-function: #6639ba;
+      --color-code-property: #953800;
+      --color-code-punctuation: #57606a;
+      --color-code-inserted: #0a7d55;
+      --color-code-deleted: #cf222e;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #262626;
+      --color-chart-2: #3b82f6;
+      --color-chart-3: #10b981;
+      --color-chart-4: #f59e0b;
+      --color-chart-5: #8b5cf6;
+    
+      /* Panel shape scale */
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --radius-2xl: 16px;
+      --radius-3xl: 24px;
+    }
+
+    @variant dark {
+      /* color-mix(neutral-950 96%, white) */
+      --color-background: #141414;
+      /* neutral-100 */
+      --color-foreground: #f5f5f5;
+
+      /* color-mix(background 98%, white) */
+      --color-card: #191919;
+      --color-card-foreground: #f5f5f5;
+
+      /* color-mix(background 96%, white) */
+      --color-popover: #1d1d1d;
+      --color-popover-foreground: #f5f5f5;
+
+      /* color-mix(background 92%, white) — one step past the popover */
+      --color-overlay: #232323;
+      --color-overlay-foreground: #f5f5f5;
+      /* the sunken band under a card or dialog: black at 22% */
+      --color-inset: rgba(0, 0, 0, 0.22);
+
+      --color-primary: #f5f5f5;
+      --color-primary-foreground: #262626;
+
+      /* secondary/muted/accent: white at 4% */
+      --color-secondary: rgba(255, 255, 255, 0.08);
+      --color-secondary-foreground: #f5f5f5;
+
+      --color-muted: rgba(255, 255, 255, 0.08);
+      /*
+       * color-mix(neutral-500 86%, white). Was 90% (#818181), which came out
+       * at 4.42:1 on the popover surface — under the 4.5:1 floor for body
+       * text. Every other theme's muted foreground already clears it.
+       */
+      --color-muted-foreground: #878787;
+
+      --color-accent: rgba(255, 255, 255, 0.08);
+      --color-accent-foreground: #f5f5f5;
+
+      /* color-mix(red-500 90%, white), foreground {hue}-400 */
+      --color-destructive: #f15757;
+      --color-destructive-foreground: #f87171;
+      --color-destructive-solid-foreground: #171717;
+
+      --color-info: #3b82f6;
+      --color-info-foreground: #60a5fa;
+      --color-info-solid-foreground: #171717;
+
+      --color-success: #10b981;
+      --color-success-foreground: #34d399;
+      --color-success-solid-foreground: #171717;
+
+      --color-warning: #f59e0b;
+      --color-warning-foreground: #fbbf24;
+      --color-warning-solid-foreground: #171717;
+
+      /* border: white 6%, input: white 8% */
+      --color-border: rgba(255, 255, 255, 0.06);
+      --color-input: rgba(255, 255, 255, 0.08);
+      /* neutral-500 */
+      --color-ring: #737373;
+
+      /* grouping surface (Frame) and skeleton fill */
+      --color-surface: #1c1c1c;
+      --color-surface-secondary: #222222;
+      --color-surface-tertiary: #282828;
+      --color-skeleton: rgba(255, 255, 255, 0.13);
+
+      /* status fills: -soft = Alert (6%), -subtle = Badge (16%) */
+      --color-info-soft: rgba(59, 130, 246, 0.06);
+      --color-info-subtle: rgba(59, 130, 246, 0.16);
+      --color-success-soft: rgba(16, 185, 129, 0.06);
+      --color-success-subtle: rgba(16, 185, 129, 0.16);
+      --color-warning-soft: rgba(245, 158, 11, 0.06);
+      --color-warning-subtle: rgba(245, 158, 11, 0.16);
+      --color-destructive-soft: rgba(241, 87, 87, 0.06);
+      --color-destructive-subtle: rgba(241, 87, 87, 0.16);
+
+      /* syntax colours */
+      --color-code-keyword: #d2a8ff;
+      --color-code-string: #7ee787;
+      --color-code-number: #79c0ff;
+      --color-code-comment: #8b949e;
+      --color-code-function: #d2a8ff;
+      --color-code-property: #ffa657;
+      --color-code-punctuation: #8b949e;
+      --color-code-inserted: #7ee787;
+      --color-code-deleted: #ff7b72;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #fafafa;
+      --color-chart-2: #60a5fa;
+      --color-chart-3: #34d399;
+      --color-chart-4: #fbbf24;
+      --color-chart-5: #a78bfa;
+    
+      /* Panel shape scale */
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 10px;
+      --radius-xl: 14px;
+      --radius-2xl: 16px;
+      --radius-3xl: 24px;
+    }
+
+    /*
+     * Named themes.
+     *
+     * Uniwind only gives `light` and `dark` prefers-color-scheme handling;
+     * every other theme compiles to a plain class selector. That means a
+     * named theme cannot adapt on its own, so each brand ships as a
+     * light/dark pair and the app switches between them explicitly (see
+     * `useThemeMode()`).
+     *
+     * Register them in your metro config or setTheme() will throw:
+     *   withUniwindConfig(config, {
+     *     extraThemes: ['moon', 'moon-dark', 'grass', 'grass-dark'],
+     *   })
+     *
+     * Every theme must define every token — Uniwind fails the build with
+     * "All themes must have the same variables" otherwise.
+     */
+
+    /*
+     * Moon — a near-black canvas under a lavender-blue accent, with elevation
+     * carried by a ladder of barely-separated surfaces and 1px hairlines
+     * rather than by shadow. Corners are tight and the type contrast is high.
+     *
+     * The character of this family lives in the *distance between* the
+     * surfaces, not in any one of them: #0f1011, #141516, #18191a and #191a1b
+     * are within a few points of each other, so a card on a panel on the
+     * canvas reads as three planes without any of them looking lighter than
+     * the room. Flattening that ladder to two values is what makes a dark
+     * theme look like a screenshot with the brightness turned down.
+     */
+    @variant moon {
+      --color-background: #ffffff;
+      --color-foreground: #08090a;
+
+      --color-card: #ffffff;
+      --color-card-foreground: #08090a;
+
+      --color-popover: #ffffff;
+      --color-popover-foreground: #08090a;
+
+      --color-overlay: #ffffff;
+      --color-overlay-foreground: #08090a;
+      /* the sunken band under a card or dialog: black at 3.5% */
+      --color-inset: rgba(0, 0, 0, 0.035);
+
+      --color-primary: #5e6ad2;
+      --color-primary-foreground: #ffffff;
+
+      --color-secondary: rgba(0, 0, 0, 0.05);
+      --color-secondary-foreground: #08090a;
+
+      --color-muted: rgba(0, 0, 0, 0.05);
+      --color-muted-foreground: #6b6f76;
+
+      --color-accent: rgba(0, 0, 0, 0.06);
+      --color-accent-foreground: #08090a;
+
+      --color-destructive: #eb5757;
+      --color-destructive-foreground: #c62b30;
+      --color-destructive-solid-foreground: #08090a;
+
+      --color-info: #4ea7fc;
+      --color-info-foreground: #0b6ec4;
+      --color-info-solid-foreground: #08090a;
+
+      --color-success: #27a644;
+      --color-success-foreground: #1c7a32;
+      --color-success-solid-foreground: #08090a;
+
+      --color-warning: #f2c94c;
+      --color-warning-foreground: #8a6d0b;
+      --color-warning-solid-foreground: #08090a;
+
+      --color-border: rgba(0, 0, 0, 0.08);
+      --color-input: rgba(0, 0, 0, 0.12);
+      --color-ring: #5e6ad2;
+
+      --color-surface: #f5f6f6;
+      --color-surface-secondary: #f6f7f7;
+      --color-surface-tertiary: #eeeff1;
+      --color-skeleton: rgba(0, 0, 0, 0.07);
+
+      --color-info-soft: rgba(78, 167, 252, 0.1);
+      --color-info-subtle: rgba(78, 167, 252, 0.08);
+      --color-success-soft: rgba(39, 166, 68, 0.1);
+      --color-success-subtle: rgba(39, 166, 68, 0.08);
+      --color-warning-soft: rgba(242, 201, 76, 0.14);
+      --color-warning-subtle: rgba(242, 201, 76, 0.1);
+      --color-destructive-soft: rgba(235, 87, 87, 0.1);
+      --color-destructive-subtle: rgba(235, 87, 87, 0.08);
+
+      /* syntax colours */
+      --color-code-keyword: #5e6ad2;
+      --color-code-string: #1c7a32;
+      --color-code-number: #0b6ec4;
+      --color-code-comment: #8a8f98;
+      --color-code-function: #6639ba;
+      --color-code-property: #953800;
+      --color-code-punctuation: #62666d;
+      --color-code-inserted: #1c7a32;
+      --color-code-deleted: #cf222e;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #5e6ad2;
+      --color-chart-2: #4ea7fc;
+      --color-chart-3: #27a644;
+      --color-chart-4: #f2c94c;
+      --color-chart-5: #7a7fad;
+
+      /* Moon shape scale */
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-2xl: 24px;
+      --radius-3xl: 32px;
+    }
+
+    @variant moon-dark {
+      --color-background: #010102;
+      --color-foreground: #f7f8f8;
+
+      --color-card: #0f1011;
+      --color-card-foreground: #f7f8f8;
+
+      --color-popover: #141516;
+      --color-popover-foreground: #f7f8f8;
+
+      --color-overlay: #18191a;
+      --color-overlay-foreground: #f7f8f8;
+      /* the sunken band under a card or dialog: black at 22% */
+      --color-inset: rgba(0, 0, 0, 0.22);
+
+      --color-primary: #5e6ad2;
+      --color-primary-foreground: #ffffff;
+
+      --color-secondary: rgba(255, 255, 255, 0.06);
+      --color-secondary-foreground: #f7f8f8;
+
+      --color-muted: rgba(255, 255, 255, 0.06);
+      --color-muted-foreground: #8a8f98;
+
+      --color-accent: rgba(255, 255, 255, 0.08);
+      --color-accent-foreground: #f7f8f8;
+
+      --color-destructive: #eb5757;
+      --color-destructive-foreground: #ff8a8a;
+      --color-destructive-solid-foreground: #08090a;
+
+      --color-info: #4ea7fc;
+      --color-info-foreground: #8ec5ff;
+      --color-info-solid-foreground: #08090a;
+
+      --color-success: #27a644;
+      --color-success-foreground: #4cc061;
+      --color-success-solid-foreground: #08090a;
+
+      --color-warning: #f2c94c;
+      --color-warning-foreground: #f5d97a;
+      --color-warning-solid-foreground: #08090a;
+
+      /* The hairlines are opaque, not translucent: the surface ladder is only
+         a few points wide, so a border mixed with whatever is under it would
+         read as a different line on each of them. */
+      --color-border: #23252a;
+      --color-input: #34343a;
+      --color-ring: #5e6ad2;
+
+      --color-surface: #0f1011;
+      --color-surface-secondary: #141516;
+      --color-surface-tertiary: #18191a;
+      --color-skeleton: rgba(255, 255, 255, 0.08);
+
+      --color-info-soft: rgba(78, 167, 252, 0.16);
+      --color-info-subtle: rgba(78, 167, 252, 0.1);
+      --color-success-soft: rgba(39, 166, 68, 0.18);
+      --color-success-subtle: rgba(39, 166, 68, 0.12);
+      --color-warning-soft: rgba(242, 201, 76, 0.16);
+      --color-warning-subtle: rgba(242, 201, 76, 0.1);
+      --color-destructive-soft: rgba(235, 87, 87, 0.16);
+      --color-destructive-subtle: rgba(235, 87, 87, 0.1);
+
+      /* syntax colours */
+      --color-code-keyword: #828fff;
+      --color-code-string: #4cc061;
+      --color-code-number: #8ec5ff;
+      --color-code-comment: #62666d;
+      --color-code-function: #d2a8ff;
+      --color-code-property: #ffa657;
+      --color-code-punctuation: #8a8f98;
+      --color-code-inserted: #4cc061;
+      --color-code-deleted: #ff8a8a;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #5e6ad2;
+      --color-chart-2: #4ea7fc;
+      --color-chart-3: #27a644;
+      --color-chart-4: #f2c94c;
+      --color-chart-5: #7a7fad;
+
+      /* Moon shape scale */
+      --radius-xs: 4px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --radius-2xl: 24px;
+      --radius-3xl: 32px;
+    }
+
+    /* Grass — green accent on warm-neutral greys, with soft generous corners. */
+    @variant grass {
+      --color-background: #ffffff;
+      --color-foreground: #171717;
+
+      --color-card: #ffffff;
+      --color-card-foreground: #171717;
+
+      --color-popover: #ffffff;
+      --color-popover-foreground: #171717;
+
+      --color-overlay: #ffffff;
+      --color-overlay-foreground: #171717;
+      /* the sunken band under a card or dialog: black at 3.5% */
+      --color-inset: rgba(0, 0, 0, 0.035);
+
+      /* Dark green ink preserves the brand fill and clears the body-text floor. */
+      --color-primary: #24b47e;
+      --color-primary-foreground: #052e1b;
+
+      --color-secondary: rgba(0, 0, 0, 0.05);
+      --color-secondary-foreground: #171717;
+
+      --color-muted: rgba(0, 0, 0, 0.05);
+      --color-muted-foreground: #707070;
+
+      --color-accent: rgba(62, 207, 142, 0.1);
+      --color-accent-foreground: #16794c;
+
+      --color-destructive: #ef4444;
+      --color-destructive-foreground: #b91c1c;
+      --color-destructive-solid-foreground: #171717;
+
+      --color-info: #3b82f6;
+      --color-info-foreground: #1d4ed8;
+      --color-info-solid-foreground: #171717;
+
+      --color-success: #24b47e;
+      --color-success-foreground: #16794c;
+      --color-success-solid-foreground: #171717;
+
+      --color-warning: #f59e0b;
+      --color-warning-foreground: #b45309;
+      --color-warning-solid-foreground: #171717;
+
+      --color-border: rgba(0, 0, 0, 0.08);
+      --color-input: rgba(0, 0, 0, 0.1);
+      --color-ring: #3ecf8e;
+
+      --color-surface: #f8f9fa;
+      --color-surface-secondary: #f1f3f5;
+      --color-surface-tertiary: #e9ecef;
+      --color-skeleton: rgba(0, 0, 0, 0.08);
+
+      --color-info-soft: rgba(59, 130, 246, 0.1);
+      --color-info-subtle: rgba(59, 130, 246, 0.08);
+      --color-success-soft: rgba(36, 180, 126, 0.1);
+      --color-success-subtle: rgba(36, 180, 126, 0.08);
+      --color-warning-soft: rgba(245, 158, 11, 0.1);
+      --color-warning-subtle: rgba(245, 158, 11, 0.08);
+      --color-destructive-soft: rgba(239, 68, 68, 0.1);
+      --color-destructive-subtle: rgba(239, 68, 68, 0.08);
+
+      /* syntax colours */
+      --color-code-keyword: #8250df;
+      --color-code-string: #0a7d55;
+      --color-code-number: #0550ae;
+      --color-code-comment: #8b949e;
+      --color-code-function: #6639ba;
+      --color-code-property: #953800;
+      --color-code-punctuation: #57606a;
+      --color-code-inserted: #0a7d55;
+      --color-code-deleted: #cf222e;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #24b47e;
+      --color-chart-2: #1f2937;
+      --color-chart-3: #2563eb;
+      --color-chart-4: #f59e0b;
+      --color-chart-5: #db2777;
+    
+      /* Grass shape scale */
+      --radius-xs: 6px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-2xl: 22px;
+      --radius-3xl: 28px;
+    }
+
+    @variant grass-dark {
+      --color-background: #1c1c1c;
+      --color-foreground: #ededed;
+
+      --color-card: #1f1f1f;
+      --color-card-foreground: #ededed;
+
+      --color-popover: #232323;
+      --color-popover-foreground: #ededed;
+
+      --color-overlay: #2a2a2a;
+      --color-overlay-foreground: #ededed;
+      /* the sunken band under a card or dialog: black at 22% */
+      --color-inset: rgba(0, 0, 0, 0.22);
+
+      --color-primary: #3ecf8e;
+      --color-primary-foreground: #052e1b;
+
+      --color-secondary: rgba(255, 255, 255, 0.07);
+      --color-secondary-foreground: #ededed;
+
+      --color-muted: rgba(255, 255, 255, 0.07);
+      --color-muted-foreground: #8f8f8f;
+
+      --color-accent: rgba(62, 207, 142, 0.12);
+      --color-accent-foreground: #3ecf8e;
+
+      --color-destructive: #f15757;
+      --color-destructive-foreground: #f87171;
+      --color-destructive-solid-foreground: #171717;
+
+      --color-info: #3b82f6;
+      --color-info-foreground: #60a5fa;
+      --color-info-solid-foreground: #171717;
+
+      --color-success: #3ecf8e;
+      --color-success-foreground: #4ade80;
+      --color-success-solid-foreground: #171717;
+
+      --color-warning: #f59e0b;
+      --color-warning-foreground: #fbbf24;
+      --color-warning-solid-foreground: #171717;
+
+      --color-border: rgba(255, 255, 255, 0.07);
+      --color-input: rgba(255, 255, 255, 0.1);
+      --color-ring: #3ecf8e;
+
+      --color-surface: #242424;
+      --color-surface-secondary: #2a2a2a;
+      --color-surface-tertiary: #303030;
+      --color-skeleton: rgba(255, 255, 255, 0.11);
+
+      --color-info-soft: rgba(59, 130, 246, 0.08);
+      --color-info-subtle: rgba(59, 130, 246, 0.16);
+      --color-success-soft: rgba(62, 207, 142, 0.08);
+      --color-success-subtle: rgba(62, 207, 142, 0.16);
+      --color-warning-soft: rgba(245, 158, 11, 0.08);
+      --color-warning-subtle: rgba(245, 158, 11, 0.16);
+      --color-destructive-soft: rgba(241, 87, 87, 0.08);
+      --color-destructive-subtle: rgba(241, 87, 87, 0.16);
+
+      /* syntax colours */
+      --color-code-keyword: #d2a8ff;
+      --color-code-string: #7ee787;
+      --color-code-number: #79c0ff;
+      --color-code-comment: #8b949e;
+      --color-code-function: #d2a8ff;
+      --color-code-property: #ffa657;
+      --color-code-punctuation: #8b949e;
+      --color-code-inserted: #7ee787;
+      --color-code-deleted: #ff7b72;
+
+      /* chart series, in order of prominence */
+      --color-chart-1: #3ecf8e;
+      --color-chart-2: #ededed;
+      --color-chart-3: #60a5fa;
+      --color-chart-4: #fbbf24;
+      --color-chart-5: #f472b6;
+    
+      /* Grass shape scale */
+      --radius-xs: 6px;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 14px;
+      --radius-xl: 18px;
+      --radius-2xl: 22px;
+      --radius-3xl: 28px;
+    }
+  }
+}

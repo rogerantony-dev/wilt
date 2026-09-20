@@ -1,0 +1,11 @@
+{
+  "$schema": "https://panelui.dev/schema.json",
+  "registry": "https://panelui.dev/r",
+  "aliases": {
+    "components": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "css": "global.css",
+  "theme": "theme.css"
+}

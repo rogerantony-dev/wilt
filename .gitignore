@@ -63,3 +63,4 @@ docs/store/*.mp4
 
 # EAS local signing credentials (keystore lives in ~/.wilt, never in the repo)
 credentials.json
+uniwind-types.d.ts

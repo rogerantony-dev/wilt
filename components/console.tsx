@@ -1,14 +1,20 @@
 import { type ReactNode } from "react";
-import { Pressable, Text, View, type TextProps } from "react-native";
+import { View, type TextProps } from "react-native";
+
+import { Text } from "./ui/text";
+import { Tabs } from "./ui/tabs";
+import { Progress } from "./ui/progress";
+import { GLASS } from "./kit";
 
 /**
  * Shared building blocks for Wilt's "Quiet" look — minimal and dark-first.
  * Near-black canvas, warm off-white text, generous whitespace, and a single
  * green accent used only where it carries meaning (service on, blocked/safe,
- * enabled, improving). No instrument framing, scanlines, or hazard tape.
+ * enabled, improving). Built on PanelUI primitives; the palette lives in
+ * global.css as PanelUI's tokens repointed to these values.
  */
 
-// Hex mirrors of the tailwind tokens, for inline styles + icon colors.
+// Hex mirrors of the CSS tokens, for inline styles + icon colors.
 export const C = {
   ink: "#0D0D0C",
   ink2: "#141413",
@@ -29,15 +35,8 @@ export const C = {
 export function Brand({ on = true }: { on?: boolean }) {
   return (
     <View className="flex-row items-center gap-2.5">
-      <View
-        style={{
-          width: 7,
-          height: 7,
-          borderRadius: 4,
-          backgroundColor: on ? C.toxic : C.dim,
-        }}
-      />
-      <Text className="text-[16px] font-semibold text-bone" style={{ letterSpacing: -0.2 }}>
+      <View className={`h-[7px] w-[7px] rounded-full ${on ? "bg-success" : "bg-dim"}`} />
+      <Text size="base" weight="semibold" style={{ letterSpacing: -0.2 }}>
         Wilt
       </Text>
     </View>
@@ -54,23 +53,17 @@ export function Kicker({
   return (
     <Text
       {...rest}
-      style={[
-        {
-          fontSize: 12,
-          fontWeight: "600",
-          letterSpacing: 1.1,
-          color,
-          textTransform: "uppercase",
-        },
-        style,
-      ]}
+      size="xs"
+      weight="semibold"
+      className="uppercase"
+      style={[{ letterSpacing: 1.1, color }, style]}
     >
       {children}
     </Text>
   );
 }
 
-/** A flat segmented control: active cell lifts to `panelhi`, rest stay quiet. */
+/** A flat segmented control on PanelUI's Tabs: the active cell lifts, the rest stay quiet. */
 export function Segmented<T extends string>({
   options,
   value,
@@ -81,22 +74,15 @@ export function Segmented<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <View className="flex-row gap-1 rounded-2xl bg-panel p-1">
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            className={`flex-1 items-center rounded-xl py-2.5 ${active ? "bg-panelhi" : ""}`}
-          >
-            <Text className={`text-[14px] font-semibold ${active ? "text-bone" : "text-ash"}`}>
-              {o.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+    <Tabs value={value} defaultValue={value} onValueChange={(v) => onChange(v as T)} variant="segmented">
+      <Tabs.List className="rounded-[16px] p-1" style={GLASS} indicatorClassName="rounded-[12px] bg-bone/10">
+        {options.map((o) => (
+          <Tabs.Trigger key={o.key} value={o.key} className="rounded-[12px] py-2.5">
+            {o.label}
+          </Tabs.Trigger>
+        ))}
+      </Tabs.List>
+    </Tabs>
   );
 }
 
@@ -104,20 +90,11 @@ export function Segmented<T extends string>({
 export function Track({ value, marker = 0.75 }: { value: number; marker?: number }) {
   const pct = Math.round(Math.min(1, Math.max(0.03, value)) * 100);
   return (
-    <View className="h-[3px] w-full rounded-sm bg-panelhi">
+    <View>
+      <Progress value={pct} className="h-[3px]" indicatorClassName="bg-foreground" />
       <View
-        className="h-full rounded-sm bg-bone"
-        style={{ width: `${pct}%` }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          left: `${Math.round(marker * 100)}%`,
-          top: -3,
-          bottom: -3,
-          width: 1.5,
-          backgroundColor: C.dim,
-        }}
+        className="absolute w-[1.5px] bg-dim"
+        style={{ left: `${Math.round(marker * 100)}%`, top: -3, bottom: -3 }}
       />
     </View>
   );

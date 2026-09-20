@@ -1,3 +1,155 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@import 'uniwind';
+@import './theme.css';
+@source './components';
+@source './lib';
+@source './hooks';
+
+/*
+ * Wilt's "Quiet" identity on top of PanelUI's token set: near-black warm
+ * canvas, warm off-white text, one green accent used only where it carries
+ * meaning (service on, blocked/safe, enabled, improving), amber for time
+ * burned and red only past the limit. Both variants get the same values;
+ * the app is dark-first by design and has no light look.
+ */
+@theme {
+  /* The app's own names, kept so existing classNames (bg-ink, text-bone) still compile. */
+  --color-ink: #0D0D0C;
+  --color-ink2: #141413;
+  --color-panel: #1A1A18;
+  --color-panelhi: #2C2C29;
+  --color-bone: #F2F1EC;
+  --color-ash: #9A9A92;
+  --color-dim: #62625B;
+  --color-hair: rgba(242, 241, 236, 0.10);
+  --color-ember: #38C786;
+  --color-emberdeep: #2E9466;
+  --color-amber: #F5A524;
+  --color-toxic: #38C786;
+  --color-toxicdeep: #0E3D29;
+  --color-waste: #E0913C;
+  --color-over: #D2542F;
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --color-background: #0D0D0C;
+      --color-foreground: #F2F1EC;
+      --color-card: #1A1A18;
+      --color-card-foreground: #F2F1EC;
+      --color-popover: #1A1A18;
+      --color-popover-foreground: #F2F1EC;
+      --color-overlay: #2C2C29;
+      --color-overlay-foreground: #F2F1EC;
+      --color-inset: rgba(0, 0, 0, 0.28);
+      --color-primary: #F2F1EC;
+      --color-primary-foreground: #0D0D0C;
+      --color-secondary: #1A1A18;
+      --color-secondary-foreground: #F2F1EC;
+      --color-muted: #2C2C29;
+      --color-muted-foreground: #9A9A92;
+      --color-accent: #2C2C29;
+      --color-accent-foreground: #F2F1EC;
+      --color-destructive: #D2542F;
+      --color-destructive-foreground: #E0704D;
+      --color-destructive-solid-foreground: #0D0D0C;
+      --color-info: #9A9A92;
+      --color-info-foreground: #C9C8C1;
+      --color-info-solid-foreground: #0D0D0C;
+      --color-success: #38C786;
+      --color-success-foreground: #38C786;
+      --color-success-solid-foreground: #0D0D0C;
+      --color-warning: #E0913C;
+      --color-warning-foreground: #E0913C;
+      --color-warning-solid-foreground: #0D0D0C;
+      --color-border: rgba(242, 241, 236, 0.10);
+      --color-input: rgba(242, 241, 236, 0.14);
+      --color-ring: #62625B;
+      --color-surface: #1A1A18;
+      --color-surface-secondary: #232321;
+      --color-surface-tertiary: #2C2C29;
+      --color-skeleton: rgba(242, 241, 236, 0.10);
+      --color-info-soft: rgba(154, 154, 146, 0.08);
+      --color-info-subtle: rgba(154, 154, 146, 0.16);
+      --color-success-soft: rgba(56, 199, 134, 0.08);
+      --color-success-subtle: rgba(56, 199, 134, 0.16);
+      --color-warning-soft: rgba(224, 145, 60, 0.08);
+      --color-warning-subtle: rgba(224, 145, 60, 0.16);
+      --color-destructive-soft: rgba(210, 84, 47, 0.08);
+      --color-destructive-subtle: rgba(210, 84, 47, 0.16);
+      --color-chart-1: #F2F1EC;
+      --color-chart-2: #9A9A92;
+      --color-chart-3: #38C786;
+      --color-chart-4: #E0913C;
+      --color-chart-5: #D2542F;
+      /* Tailwind 3's scale, which the Quiet layouts were drawn against. */
+      --radius-xs: 2px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --radius-2xl: 16px;
+      --radius-3xl: 24px;
+    }
+    @variant dark {
+      --color-background: #0D0D0C;
+      --color-foreground: #F2F1EC;
+      --color-card: #1A1A18;
+      --color-card-foreground: #F2F1EC;
+      --color-popover: #1A1A18;
+      --color-popover-foreground: #F2F1EC;
+      --color-overlay: #2C2C29;
+      --color-overlay-foreground: #F2F1EC;
+      --color-inset: rgba(0, 0, 0, 0.28);
+      --color-primary: #F2F1EC;
+      --color-primary-foreground: #0D0D0C;
+      --color-secondary: #1A1A18;
+      --color-secondary-foreground: #F2F1EC;
+      --color-muted: #2C2C29;
+      --color-muted-foreground: #9A9A92;
+      --color-accent: #2C2C29;
+      --color-accent-foreground: #F2F1EC;
+      --color-destructive: #D2542F;
+      --color-destructive-foreground: #E0704D;
+      --color-destructive-solid-foreground: #0D0D0C;
+      --color-info: #9A9A92;
+      --color-info-foreground: #C9C8C1;
+      --color-info-solid-foreground: #0D0D0C;
+      --color-success: #38C786;
+      --color-success-foreground: #38C786;
+      --color-success-solid-foreground: #0D0D0C;
+      --color-warning: #E0913C;
+      --color-warning-foreground: #E0913C;
+      --color-warning-solid-foreground: #0D0D0C;
+      --color-border: rgba(242, 241, 236, 0.10);
+      --color-input: rgba(242, 241, 236, 0.14);
+      --color-ring: #62625B;
+      --color-surface: #1A1A18;
+      --color-surface-secondary: #232321;
+      --color-surface-tertiary: #2C2C29;
+      --color-skeleton: rgba(242, 241, 236, 0.10);
+      --color-info-soft: rgba(154, 154, 146, 0.08);
+      --color-info-subtle: rgba(154, 154, 146, 0.16);
+      --color-success-soft: rgba(56, 199, 134, 0.08);
+      --color-success-subtle: rgba(56, 199, 134, 0.16);
+      --color-warning-soft: rgba(224, 145, 60, 0.08);
+      --color-warning-subtle: rgba(224, 145, 60, 0.16);
+      --color-destructive-soft: rgba(210, 84, 47, 0.08);
+      --color-destructive-subtle: rgba(210, 84, 47, 0.16);
+      --color-chart-1: #F2F1EC;
+      --color-chart-2: #9A9A92;
+      --color-chart-3: #38C786;
+      --color-chart-4: #E0913C;
+      --color-chart-5: #D2542F;
+      /* Tailwind 3's scale, which the Quiet layouts were drawn against. */
+      --radius-xs: 2px;
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-xl: 12px;
+      --radius-2xl: 16px;
+      --radius-3xl: 24px;
+    }
+  }
+}

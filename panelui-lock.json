@@ -1,0 +1,347 @@
+{
+  "version": 2,
+  "files": {
+    "components/ui/panel-ui-provider.tsx": {
+      "item": "panel-ui-provider",
+      "digest": "sha256:5d27beb20da94ac6883fae852eb9f65f72505152de21bef42881ff48af7ba910"
+    },
+    "lib/cn.ts": {
+      "item": "cn",
+      "digest": "sha256:9304a861c8673bee09e0f12de31773abbde503b02e59dfd74763ddec2e37cf05"
+    },
+    "components/ui/portal.tsx": {
+      "item": "portal",
+      "digest": "sha256:3f77c536fdc107ee1e2993f849b53440b051170378c9467d73b41f9ff6ec1614"
+    },
+    "components/ui/focus-restoration-store.ts": {
+      "item": "focus-restoration-store",
+      "digest": "sha256:cd47b2ec6b440f1073e831912037677aaca12330f33a8aea335d67a46980a7a9"
+    },
+    "components/ui/modal-isolation-store.ts": {
+      "item": "modal-isolation-store",
+      "digest": "sha256:346301f0da15175f23a8918834d0c6e9bbdb096e3c130fa92bc9640dc3500c70"
+    },
+    "components/ui/toast.tsx": {
+      "item": "toast",
+      "digest": "sha256:9db0a732afe98dc8a0ad0033c8fce362b8d9ac5c6f9110c4fec44baea5c587fc"
+    },
+    "components/ui/toast-store.ts": {
+      "item": "toast",
+      "digest": "sha256:3a74ab7c74e9aae50664bd5e7fd1204b267b45e20a1e89821911ceee4fc3d63f"
+    },
+    "components/ui/button.tsx": {
+      "item": "button",
+      "digest": "sha256:fd2a75b812d212b49b922993c2e600aa1f198b5cfec5f8c68e592984dd9a9269"
+    },
+    "components/ui/animated-pressable.tsx": {
+      "item": "animated-pressable",
+      "digest": "sha256:1b36a4a54b2b7e58ebb087370f867b8f8641d7e620045d97e931abad6356d150"
+    },
+    "components/ui/icons.tsx": {
+      "item": "icons",
+      "digest": "sha256:e383acec2fe3d33f10e22ab04ac6519615652c68ee157050c1f4dc1a8209331f"
+    },
+    "hooks/use-direction.ts": {
+      "item": "use-direction",
+      "digest": "sha256:9202d8550abaed8720af42d0320acf51e227fbf23f649b5636fd26475b849867"
+    },
+    "lib/native.ts": {
+      "item": "native",
+      "digest": "sha256:44407dea4ffaececbb542fb459022cd6abccf222c671246f98c70b0ad91d6e2e"
+    },
+    "lib/native-host.tsx": {
+      "item": "native",
+      "digest": "sha256:c03292c099c4cf992798e6cde2b0628731f8e6f30f88a992b8f2b3c8e47a210e"
+    },
+    "hooks/use-theme.ts": {
+      "item": "use-theme",
+      "digest": "sha256:1e0fe0e82d80fbb51c93bf6735d2676cf5f125a7f8f1210756e0aec5e8ec743f"
+    },
+    "components/ui/spinner.tsx": {
+      "item": "spinner",
+      "digest": "sha256:bb64b6e48da6dc9b0f92c356562bd561a974afa966bf06120594a508d92d3436"
+    },
+    "components/ui/text.tsx": {
+      "item": "text",
+      "digest": "sha256:7d2ac97b2f276c5ff03f524b21cde8616cfe9217a0a0c49d39eeba620bf462de"
+    },
+    "components/ui/typography.tsx": {
+      "item": "typography",
+      "digest": "sha256:9d197c8ca3c61cfce4d252f81e7ef776146eed74b03ca778b5c721a522139e29"
+    },
+    "components/ui/button-group.tsx": {
+      "item": "button-group",
+      "digest": "sha256:adf5403798936d83b75bb0bbb03c4b00adee0cd5eb409b78887d5cd391da10ea"
+    },
+    "components/ui/card.tsx": {
+      "item": "card",
+      "digest": "sha256:dec55b77a9b17dffd9a4529b58e066f0d869173991d63b10c036ff2d030a49df"
+    },
+    "components/ui/surface.tsx": {
+      "item": "surface",
+      "digest": "sha256:8cd5cb8307862ba0222f6544a6f730a7f09457fae186b9697ada4bca874b0f0a"
+    },
+    "components/ui/separator.tsx": {
+      "item": "separator",
+      "digest": "sha256:073b3af3adad8ddf382bf533f269dcd23bdf3d1ad1ef1075d31c200aacd0477d"
+    },
+    "components/ui/badge.tsx": {
+      "item": "badge",
+      "digest": "sha256:df65ff359917366b7bdca516e72b97bb744e2976157e8782d349dc8983837b7e"
+    },
+    "components/ui/switch.tsx": {
+      "item": "switch",
+      "digest": "sha256:529630ae96b6cdb93c4a2e6d7265769259f5d71e1fd4eb23d6aee7b825f9ed43"
+    },
+    "components/ui/field.tsx": {
+      "item": "field",
+      "digest": "sha256:8ec8d83ff28ae0c5a0cb5cb874d7b8d361bd6bc82cd259b0a4142a3306320b7d"
+    },
+    "components/ui/label.tsx": {
+      "item": "label",
+      "digest": "sha256:cc3ffbca72ea9a42087d0caa47c8d5d502924975a3ff8b44ab1cf1c5adb27dfb"
+    },
+    "lib/haptics.ts": {
+      "item": "haptics",
+      "digest": "sha256:aad3c62bb6b9039ef5db86da4f161e415f3f459e25b192a192ae325997733e41"
+    },
+    "components/ui/radio-group.tsx": {
+      "item": "radio-group",
+      "digest": "sha256:b83faffbc4686be9da413cf285f33f7aeb3fc527577565f7ebe5f6da4bfdef76"
+    },
+    "components/ui/radio-group-value.ts": {
+      "item": "radio-group",
+      "digest": "sha256:46228fa2d15d5d045b20a9a6e4fdc35f7abdc2f1c53392be2bdceff252c01da7"
+    },
+    "components/ui/bottom-sheet.tsx": {
+      "item": "bottom-sheet",
+      "digest": "sha256:2ba47dcb9c69a6d2f4a4d4ac3949e42aef0581207665ef6abd8f1f83bbe89bf6"
+    },
+    "components/ui/scrim.tsx": {
+      "item": "scrim",
+      "digest": "sha256:b8a5f68918ced359b54fa8897f752c6f18ad6a9f2e8e445c572d19f518986fb2"
+    },
+    "hooks/use-back-handler.ts": {
+      "item": "use-back-handler",
+      "digest": "sha256:7c45197c64beb13d8ab1f386758e07e2d83bdb6d02e5d83e27153afbdfa686e1"
+    },
+    "components/ui/dialog.tsx": {
+      "item": "dialog",
+      "digest": "sha256:4c788e0b535ebc1c59cf892f51a5c8c7286aec2f06ee9e88ae3dc8b6f7e04679"
+    },
+    "components/ui/progress.tsx": {
+      "item": "progress",
+      "digest": "sha256:e3dbb7ca724b8d58e923c6ad7f42a7f2daf965711fed67728d74e9863ddf8471"
+    },
+    "components/ui/tabs.tsx": {
+      "item": "tabs",
+      "digest": "sha256:d69a0b67e1548eaa97631754d441c0d42b0c2b17be0fdfff17683f76618428c4"
+    },
+    "components/ui/item.tsx": {
+      "item": "item",
+      "digest": "sha256:3c1a67d1d6234e778c8c95338f6dff45995c1779cc28ed1a2c0faa61e5fa9aee"
+    },
+    "components/ui/empty-state.tsx": {
+      "item": "empty-state",
+      "digest": "sha256:6790310281a63d07dd6a9438a98a724375176a468a99f500f0b5504b53aac075"
+    },
+    "components/ui/chip.tsx": {
+      "item": "chip",
+      "digest": "sha256:e2dc7dee54f0f3cd91f69d356d819405ec8c18ed23908769affbff99ec285ca0"
+    },
+    "components/ui/toggle-button.tsx": {
+      "item": "toggle-button",
+      "digest": "sha256:7cc1e973926dd3e24cffdbf78d7bb08d75fd4a44da0bf0b41aefefdd4bbb51c4"
+    },
+    "components/ui/bar-chart.tsx": {
+      "item": "bar-chart",
+      "digest": "sha256:8e3fad2d53d2096d88a53f89d94c04e993a38d6cc09c29b059860e9ae1cdb8a1"
+    },
+    "lib/chart.ts": {
+      "item": "chart",
+      "digest": "sha256:238b3cb40b51e422d218ac52fb704a930ad781ab3abebe343a2fc962222b0d97"
+    },
+    "components/ui/chart-accessibility.ts": {
+      "item": "chart-accessibility",
+      "digest": "sha256:32186807d2bc752936da901286d067f535829ba096d25f2bfffd6afa456e5590"
+    },
+    "components/ui/alert.tsx": {
+      "item": "alert",
+      "digest": "sha256:5ce2adadf8fd6b6192c401b17dea8f23b60c879e3f00f1a3ab0eadda5bc6d131"
+    }
+  },
+  "roots": {
+    "panel-ui-provider": [
+      "panel-ui-provider",
+      "cn",
+      "portal",
+      "focus-restoration-store",
+      "modal-isolation-store",
+      "toast",
+      "button",
+      "animated-pressable",
+      "icons",
+      "use-direction",
+      "native",
+      "use-theme",
+      "spinner",
+      "text"
+    ],
+    "text": [
+      "text",
+      "use-direction"
+    ],
+    "typography": [
+      "typography",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "button": [
+      "button",
+      "animated-pressable",
+      "cn",
+      "icons",
+      "use-direction",
+      "native",
+      "use-theme",
+      "spinner",
+      "text"
+    ],
+    "button-group": [
+      "button-group",
+      "button",
+      "animated-pressable",
+      "cn",
+      "icons",
+      "use-direction",
+      "native",
+      "use-theme",
+      "spinner",
+      "text"
+    ],
+    "card": [
+      "card",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "surface": [
+      "surface"
+    ],
+    "separator": [
+      "separator",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "badge": [
+      "badge",
+      "text",
+      "use-direction"
+    ],
+    "switch": [
+      "switch",
+      "field",
+      "label",
+      "text",
+      "use-direction",
+      "separator",
+      "cn",
+      "haptics",
+      "native",
+      "use-theme"
+    ],
+    "radio-group": [
+      "radio-group",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "bottom-sheet": [
+      "bottom-sheet",
+      "cn",
+      "haptics",
+      "icons",
+      "use-direction",
+      "native",
+      "use-theme",
+      "portal",
+      "focus-restoration-store",
+      "modal-isolation-store",
+      "scrim",
+      "text",
+      "use-back-handler"
+    ],
+    "dialog": [
+      "dialog",
+      "cn",
+      "portal",
+      "focus-restoration-store",
+      "modal-isolation-store",
+      "scrim",
+      "text",
+      "use-direction",
+      "use-back-handler"
+    ],
+    "progress": [
+      "progress",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "tabs": [
+      "tabs",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "item": [
+      "item",
+      "animated-pressable",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "empty-state": [
+      "empty-state",
+      "text",
+      "use-direction"
+    ],
+    "chip": [
+      "chip",
+      "animated-pressable",
+      "cn",
+      "haptics",
+      "icons",
+      "use-direction",
+      "text"
+    ],
+    "toggle-button": [
+      "toggle-button",
+      "animated-pressable",
+      "cn",
+      "haptics",
+      "icons",
+      "use-direction",
+      "text"
+    ],
+    "bar-chart": [
+      "bar-chart",
+      "chart",
+      "chart-accessibility",
+      "cn",
+      "text",
+      "use-direction"
+    ],
+    "alert": [
+      "alert",
+      "cn",
+      "icons",
+      "use-direction",
+      "text"
+    ]
+  },
+  "legacyFiles": [],
+  "registry": "https://panelui.dev/r"
+}
