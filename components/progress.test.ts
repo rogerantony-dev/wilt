@@ -45,12 +45,16 @@ describe("pointsForDay", () => {
 describe("nextRungBelow", () => {
   it("returns the next lower ladder value", () => {
     expect(nextRungBelow(60)).toBe(45);
-    expect(nextRungBelow(120)).toBe(90);
     expect(nextRungBelow(30)).toBe(15);
+    expect(nextRungBelow(15)).toBe(10);
+    expect(nextRungBelow(10)).toBe(5);
   });
   it("returns null at or below the floor", () => {
-    expect(nextRungBelow(15)).toBeNull();
-    expect(nextRungBelow(10)).toBeNull();
+    expect(nextRungBelow(5)).toBeNull();
+    expect(nextRungBelow(3)).toBeNull();
+  });
+  it("steps a legacy limit above the ladder down onto it", () => {
+    expect(nextRungBelow(120)).toBe(60);
   });
   it("returns the next lower rung for an off-ladder value", () => {
     expect(nextRungBelow(50)).toBe(45);
@@ -59,7 +63,7 @@ describe("nextRungBelow", () => {
 
 describe("LADDER", () => {
   it("is the descending limit ladder", () => {
-    expect(LADDER).toEqual([120, 90, 60, 45, 30, 15]);
+    expect(LADDER).toEqual([60, 45, 30, 15, 10, 5]);
   });
 });
 
@@ -143,8 +147,8 @@ describe("computeProgress", () => {
     expect(p.pendingLevelDown).toBeNull();
   });
 
-  it("never offers a level-down at the 15-minute floor", () => {
-    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
+  it("never offers a level-down at the 5-minute floor", () => {
+    const p = computeProgress(clean7(5, 1), 5, "2026-07-07", thresholds, noneSeen);
     expect(p.pendingLevelDown).toBeNull();
   });
 

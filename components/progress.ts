@@ -1,7 +1,10 @@
 import type { WiltDay } from "../modules/wiltnative";
 import { toDayIndex } from "./history";
 
-export const LADDER = [120, 90, 60, 45, 30, 15] as const;
+export const LADDER = [60, 45, 30, 15, 10, 5] as const;
+
+/** The same rungs, ascending, for the limit pickers. */
+export const LIMIT_OPTIONS: number[] = [...LADDER].reverse();
 
 /** The most a single day can be worth, however little you scrolled. */
 export const MAX_POINTS_PER_DAY = 50;
@@ -24,7 +27,7 @@ export function pointsForDay(day: WiltDay, currentLimit: number): number {
   return Math.max(0, Math.min(MAX_POINTS_PER_DAY, earned));
 }
 
-/** The next tighter rung below `limitMinutes`, or null at/below the 15-min floor. */
+/** The next tighter rung below `limitMinutes`, or null at/below the 5-min floor. */
 export function nextRungBelow(limitMinutes: number): number | null {
   const lower = LADDER.filter((r) => r < limitMinutes);
   return lower.length ? Math.max(...lower) : null;
