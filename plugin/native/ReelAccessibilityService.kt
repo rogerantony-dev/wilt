@@ -227,6 +227,8 @@ class ReelAccessibilityService : AccessibilityService() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         // Heartbeat so the app can confirm the service is actually running.
         prefs.edit().putLong("lastConnectedAt", System.currentTimeMillis()).apply()
+        // Archive a day that ended while we were off (prefs only, safe here).
+        ensureToday()
         // Being connected means any payment pause is over (the user, or the
         // auto-resume alarm, turned us back on).
         PaymentPause.clearPaused(this)
@@ -321,6 +323,9 @@ class ReelAccessibilityService : AccessibilityService() {
      * event alone.
      */
     private fun handleWindowSwitch(eventPkg: String?, source: String, retriesLeft: Int) {
+        // Roll the day over here too, not only from Instagram/YouTube events:
+        // a day they are never opened must still be archived (0 seconds, 50 coins).
+        ensureToday()
         val activePkg = activeWindowPackage()
         Log.d(TAG, "$source: event=$eventPkg active=$activePkg")
         if (activePkg == instagramPackage || activePkg == youtubePackage) {
@@ -1347,9 +1352,9 @@ class ReelAccessibilityService : AccessibilityService() {
         if (storedDate != today) {
             // Archive the finishing day into history before we zero it, so the
             // graph keeps it. Every day the service ran is stored, empty ones
-            // too: a day with no scrolling is the best day and pays 50 coins. Use the
-            // raw stored limit so a raise queued for the new day doesn't
-            // retroactively raise yesterday's.
+            // too: a day with no scrolling is the best day and pays 50 coins.
+            // Use the raw stored limit so a raise queued for the new day
+            // doesn't retroactively raise yesterday's.
             if (storedDate != null) {
                 val seconds = prefs.getInt("seconds", 0)
                 val count = prefs.getInt("count", 0)
