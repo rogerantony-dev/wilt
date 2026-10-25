@@ -1348,17 +1348,16 @@ class ReelAccessibilityService : AccessibilityService() {
         val storedDate = prefs.getString("date", null)
         if (storedDate != today) {
             // Archive the finishing day into history before we zero it, so the
-            // graph keeps it. Only days with real activity are stored. Use the
+            // graph keeps it. Every day the service ran is stored, empty ones
+            // too: a day with no scrolling is the best day and pays 50 coins. Use the
             // raw stored limit so a raise queued for the new day doesn't
             // retroactively raise yesterday's.
             if (storedDate != null) {
                 val seconds = prefs.getInt("seconds", 0)
                 val count = prefs.getInt("count", 0)
                 val shorts = prefs.getInt("shortsCount", 0)
-                if (seconds > 0 || count > 0 || shorts > 0) {
-                    val finishingLimit = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
-                    archiveDay(storedDate, seconds, count, shorts, finishingLimit)
-                }
+                val finishingLimit = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
+                archiveDay(storedDate, seconds, count, shorts, finishingLimit)
             }
             val editor = prefs.edit()
                 .putString("date", today)

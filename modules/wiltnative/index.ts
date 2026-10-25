@@ -43,8 +43,12 @@ export type WiltStatus = {
   graceLeft: number;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
   lastCelebratedStreakMilestone: number;
-  /** Lifetime points value at which cat-unlock reveals were last shown. */
-  lastPointsCelebrated: number;
+  /** What the cat wears per slot ("none" when bare). */
+  outfit: Record<"top" | "body" | "bottom", string>;
+  /** Paid item ids bought so far (free items are owned by everyone). */
+  ownedItems: string[];
+  /** Coins spent in the closet; the balance is banked coins minus this. */
+  coinsSpent: number;
   /**
    * Label of the payment app the service switched itself off for (Paytm etc.
    * refuse to pay while a third-party accessibility service is enabled), or
@@ -87,8 +91,8 @@ type NativeModule = {
   grantExtraMinute(): void;
   getHistory(): WiltDay[];
   markStreakCelebrated(milestone: number): void;
-  markPointsCelebrated(points: number): void;
-  setUnlockedCats(count: number): void;
+  wearItem(slot: string, id: string): boolean;
+  buyItem(slot: string, id: string, balance: number): boolean;
   resumeAfterPayment(): boolean;
   turnOnService(): boolean;
   dismissPaymentPause(): void;
@@ -172,26 +176,26 @@ export function markStreakCelebrated(milestone: number): void {
   }
 }
 
-export function markPointsCelebrated(points: number): void {
-  if (!nativeModule) return;
+/** Put an owned item on the cat. False when it is unknown or not owned. */
+export function wearItem(slot: string, id: string): boolean {
+  if (!nativeModule) return false;
   try {
-    nativeModule.markPointsCelebrated(points);
+    return nativeModule.wearItem(slot, id);
   } catch {
-    // no-op if the native module isn't available
+    return false;
   }
 }
 
 /**
- * Tell the service how many gallery cats are unlocked, so the cats it shows on
- * the nudge and the block cover are drawn only from the earned ones. JS owns the
- * number (thresholds and points live in components/cats.ts + progress.ts).
+ * Buy an item and wear it. JS passes the coin balance; native re-checks it and
+ * refuses an owned or unaffordable item. False when it did not go through.
  */
-export function setUnlockedCats(count: number): void {
-  if (!nativeModule) return;
+export function buyItem(slot: string, id: string, balance: number): boolean {
+  if (!nativeModule) return false;
   try {
-    nativeModule.setUnlockedCats(count);
+    return nativeModule.buyItem(slot, id, balance);
   } catch {
-    // no-op if the native module isn't available
+    return false;
   }
 }
 

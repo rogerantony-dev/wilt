@@ -42,7 +42,9 @@ class WiltnativeModule : Module() {
         "autoBlocked" to autoBlocked(context),
         "graceLeft" to (MAX_EXTRA_MINUTES - extraMinutes(context)).coerceAtLeast(0),
         "lastCelebratedStreakMilestone" to prefs(context).getInt("lastCelebratedStreakMilestone", 0),
-        "lastPointsCelebrated" to prefs(context).getInt("lastPointsCelebrated", 0),
+        "outfit" to Closet.outfit(prefs(context)),
+        "ownedItems" to Closet.owned(prefs(context)).toList(),
+        "coinsSpent" to Closet.coinsSpent(prefs(context)),
         "paymentPauseApp" to paymentPauseApp(context),
         "canAutoResume" to canWriteSecureSettings(context),
         "resumesOnLeave" to (canWriteSecureSettings(context) && canReadUsage(context)),
@@ -183,20 +185,15 @@ class WiltnativeModule : Module() {
       if (milestone > cur) p.edit().putInt("lastCelebratedStreakMilestone", milestone).apply()
     }
 
-    Function("markPointsCelebrated") { points: Int ->
-      val context = appContext.reactContext?.applicationContext ?: return@Function
-      val p = prefs(context)
-      val cur = p.getInt("lastPointsCelebrated", 0)
-      if (points > cur) p.edit().putInt("lastPointsCelebrated", points).apply()
+    // The closet. JS owns the coin balance and passes it in; Closet re-checks it.
+    Function("wearItem") { slot: String, id: String ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      Closet.wear(prefs(context), slot, id)
     }
 
-    // How many gallery cats are unlocked. The thresholds and the points maths
-    // live in JS, so JS owns this number and mirrors it here for the
-    // accessibility service, which shows cats on the nudge and the block cover
-    // and must never spoil a locked one. Never below 1: the first cat is free.
-    Function("setUnlockedCats") { count: Int ->
-      val context = appContext.reactContext?.applicationContext ?: return@Function
-      prefs(context).edit().putInt("unlockedCats", count.coerceAtLeast(1)).apply()
+    Function("buyItem") { slot: String, id: String, balance: Int ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      Closet.buy(prefs(context), slot, id, balance)
     }
   }
 
@@ -213,7 +210,9 @@ class WiltnativeModule : Module() {
     "autoBlocked" to false,
     "graceLeft" to 3,
     "lastCelebratedStreakMilestone" to 0,
-    "lastPointsCelebrated" to 0,
+    "outfit" to Closet.SLOTS.associateWith { "none" },
+    "ownedItems" to emptyList<String>(),
+    "coinsSpent" to 0,
     "paymentPauseApp" to null,
     "canAutoResume" to false,
     "resumesOnLeave" to false,
