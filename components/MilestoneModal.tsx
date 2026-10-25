@@ -50,8 +50,8 @@ export function MilestoneModal({
           <View className="gap-2.5">
             <View className="rounded-2xl p-3.5" style={GLASS}>
               <Typography type="body-sm" className="leading-6">
-                Ready for less? Drop your limit from {fmtLimit(levelDown.from)} to {fmtLimit(levelDown.to)} and
-                earn more per clean day.
+                Ready for less? Drop your limit from {fmtLimit(levelDown.from)} to {fmtLimit(levelDown.to)}. A
+                tighter limit keeps you honest, and the cat likes it.
               </Typography>
             </View>
             <AccentButton onPress={onAcceptLevelDown}>Lower to {fmtLimit(levelDown.to)}</AccentButton>

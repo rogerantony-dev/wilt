@@ -7,10 +7,11 @@ Android app (Expo + React Native) that counts and blocks Instagram Reels, YouTub
 ## Where things live
 
 - `App.tsx`: the home screen (dashboard), and it owns every sheet.
-- `components/`: screens and pieces (`Onboarding`, `HistoryScreen`, `CatGallery`, `AppsSheet`, `MilestoneModal`, `PaymentPause`). Pure logic sits next to them with Jest tests (`progress.ts`, `timeleft.ts`, `limitramp.ts`, `nudges.ts`, ...).
+- `components/`: screens and pieces (`Onboarding`, `HistoryScreen`, `ClosetSheet`, `AppsSheet`, `MilestoneModal`, `PaymentPause`). Pure logic sits next to them with Jest tests (`progress.ts`, `timeleft.ts`, `limitramp.ts`, `nudges.ts`, ...).
 - `components/ui/`: vendored PanelUI primitives (Button, Tabs, Switch, Slider, BottomSheet, Text, Typography...). Add more with `npx panelui-cli@latest add <name> --yes`. Never run `init` again, because it rewrites `global.css`.
 - `components/kit.tsx`: Wilt's button levels and surfaces. `components/console.tsx`: colour constants `C`, `Brand`, `Kicker`, `Segmented`. `components/icons.tsx`: the only icon set.
 - `lib/haptics.ts`: the haptic vocabulary.
+- The dressed cat: `components/closet.ts` is the catalogue and prices (mirrored by value in `modules/wiltnative/.../Closet.kt`); `components/catshapes.ts` is the pure figure geometry, drawn by `components/CatFigure.tsx`. `catshapes.ts` is the RN port of `design-previews/cat-figure.js`, which is canonical and renders the PNG layers the service draws (`bash scripts/render-cat-layers.sh`, read by `plugin/native/CatFigureLayers.kt`). **Change `catshapes.ts` and `cat-figure.js` together**, then re-render the layers. Coins live in `components/progress.ts` (`GoldCoin.tsx`, `CoinExplainer.tsx` for the UI); they depend on minutes used only, never on the limit.
 - `modules/wiltnative/`: the JS to native bridge (`index.ts`, `WiltnativeModule.kt`) and `Surfaces.kt`, which holds the per-surface guard toggles shared with the service.
 - `plugin/native/`: the accessibility service (`ReelAccessibilityService.kt`), payment pause, widget and resources. **`android/` is generated and gitignored.** Edit `plugin/native/`. `plugin/withReelCounter.js` copies these files in at prebuild.
 - State: one SharedPreferences file, `wilt_reels`. The service writes it, the bridge reads it, and JS never stores its own copy.

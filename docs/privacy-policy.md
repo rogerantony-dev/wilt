@@ -16,7 +16,7 @@ Wilt stores the following on your device only:
 
 - The daily limit you set, and the mode you chose (time or block).
 - How long you have spent on Reels and Shorts today, and on previous days.
-- Your streak, points, and which cat images you have unlocked.
+- Your streak, coins, and the clothes you have bought for the cat.
 
 This information is kept in your device's private app storage. Nothing else on
 your phone can read it.

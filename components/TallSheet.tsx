@@ -6,7 +6,7 @@ import { HAIRLINE, SHEET_BG } from "./kit";
 import { SheetGlow } from "./AmbientField";
 
 /**
- * The tall bottom sheet behind the Cats and History screens, on PanelUI's
+ * The tall bottom sheet behind the Closet and History screens, on PanelUI's
  * BottomSheet: the body scrolls while it has room, a downward drag at its top
  * (or on the header) pulls the sheet, and letting go past the threshold or a
  * flick closes it. Backdrop tap closes too. Driven by [visible]; [onClose]
