@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Button } from "./ui/button";
+import type { Haptic } from "../lib/haptics";
 
 export const GLASS = {
   backgroundColor: "rgba(242,241,236,0.06)",
@@ -32,6 +33,8 @@ type ButtonProps = {
   endContent?: ReactNode;
   className?: string;
   style?: StyleProp<ViewStyle>;
+  /** What the press feels like; each level has a default (see lib/haptics). */
+  haptic?: Haptic | false;
 };
 
 const LABEL = "text-[16px] font-semibold";
@@ -51,10 +54,11 @@ export function PrimaryButton({ className = "", disabled, ...rest }: ButtonProps
   );
 }
 
-export function AccentButton({ className = "", disabled, ...rest }: ButtonProps) {
+export function AccentButton({ className = "", disabled, haptic = "confirm", ...rest }: ButtonProps) {
   return (
     <Dim disabled={disabled}>
       <Button
+        haptic={haptic}
         size="xl"
         fullWidth
         className={`rounded-2xl border-success bg-success ${className}`}

@@ -48,13 +48,10 @@ class PaymentWatchService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val pkg = intent?.getStringExtra(EXTRA_PACKAGE) ?: PaymentPause.pausedPackage(this)
-        val label = intent?.getStringExtra(EXTRA_LABEL) ?: pkg?.let { PaymentPause.label(it) }
+        val label = intent?.getStringExtra(EXTRA_LABEL) ?: pkg?.let { PaymentPause.label(this, it) }
         if (pkg == null || label == null) { stopSelf(); return START_NOT_STICKY }
         since = System.currentTimeMillis()
-        // A pause triggered by a hidden screen carries no package, only a title,
-        // so the app to watch for leaving is whatever the usage log says came to
-        // the front most recently. Fall back to the given package.
-        pausedPkg = foregroundPackage(since - RECENT_MS) ?: pkg
+        pausedPkg = pkg
         done = false
         val notification = PaymentPause.pausedNotification(this, label)
         if (notification == null) { stopSelf(); return START_NOT_STICKY }
@@ -75,27 +72,12 @@ class PaymentWatchService : Service() {
 
     private fun poll() {
         if (PaymentPause.pausedPackage(this) == null) { finish("pause already cleared"); return }
-        val front = foregroundPackage(since) ?: return
+        val front = frontPackage(this, since) ?: return
         if (front == pausedPkg) return
         Log.i(TAG, "left $pausedPkg for $front; turning the service back on")
         finish("left the app")
         // enableService sleeps between its off and on writes; keep that off the main thread.
         Thread { PaymentPause.resumeNow(this, "left the app") }.start()
-    }
-
-    /** The package most recently brought to the front after [since], or null if none. */
-    private fun foregroundPackage(since: Long): String? {
-        val usage = getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
-        val events = runCatching { usage.queryEvents(since, System.currentTimeMillis()) }.getOrNull()
-            ?: return null
-        val event = UsageEvents.Event()
-        var last: String? = null
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            @Suppress("DEPRECATION")
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) last = event.packageName
-        }
-        return last
     }
 
     private fun finish(reason: String) {
@@ -123,8 +105,40 @@ class PaymentWatchService : Service() {
         private const val EXTRA_PACKAGE = "package"
         private const val EXTRA_LABEL = "label"
         private const val POLL_MS = 1000L
-        private const val RECENT_MS = 15 * 1000L
         private const val MAX_MS = 170 * 1000L
+
+        /**
+         * The app most recently brought to the front after [since], or null if
+         * none. Only apps you can go to count (anything with a launcher icon,
+         * and the home screen): a permission prompt, a Google account picker
+         * or an SMS-code sheet over the payment app is still the payment.
+         */
+        fun frontPackage(context: Context, since: Long): String? {
+            val usage = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager ?: return null
+            val events = runCatching { usage.queryEvents(since, System.currentTimeMillis()) }.getOrNull()
+                ?: return null
+            val event = UsageEvents.Event()
+            var last: String? = null
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                @Suppress("DEPRECATION")
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
+                    isDestination(context, event.packageName)
+                ) last = event.packageName
+            }
+            return last
+        }
+
+        private val destinations = HashMap<String, Boolean>()
+
+        private fun isDestination(context: Context, pkg: String): Boolean = synchronized(destinations) {
+            destinations.getOrPut(pkg) {
+                val pm = context.packageManager
+                val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(pkg)
+                pm.getLaunchIntentForPackage(pkg) != null ||
+                    runCatching { pm.queryIntentActivities(home, 0).isNotEmpty() }.getOrDefault(false)
+            }
+        }
 
         /** Usage access granted, in Settings or over adb. */
         fun canWatch(context: Context): Boolean {

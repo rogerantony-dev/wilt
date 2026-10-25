@@ -29,7 +29,8 @@ const ACCESSIBILITY_DESCRIPTION =
 /**
  * Wires up the native Reel-counter:
  *  1. Declares SYSTEM_ALERT_WINDOW + the AccessibilityService in the manifest,
- *     plus the home-screen widget receiver and the payment-pause resume receiver.
+ *     plus the home-screen widget receiver, the payment-pause resume receiver
+ *     and the receiver that restores the service after a reboot or update.
  *  2. Copies the Kotlin sources, the accessibility config XML, and the widget
  *     resources (layout/drawable/xml) into the generated Android project during
  *     prebuild.
@@ -88,18 +89,73 @@ function withReelCounterManifest(config) {
     // PACKAGE_USAGE_STATS + FOREGROUND_SERVICE: the short foreground watch that
     // turns the service back on the moment the user leaves the payment app.
     // Usage access is granted in Settings (Special app access) or over adb.
+    // RECEIVE_BOOT_COMPLETED: put the service back after a reboot.
     for (const name of [
       "android.permission.POST_NOTIFICATIONS",
       "android.permission.WRITE_SECURE_SETTINGS",
       "android.permission.SCHEDULE_EXACT_ALARM",
       "android.permission.PACKAGE_USAGE_STATS",
       "android.permission.FOREGROUND_SERVICE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
     ]) {
       if (!permissions.some((p) => p.$["android:name"] === name)) {
         permissions.push({ $: { "android:name": name } });
       }
     }
     manifest.manifest["uses-permission"] = permissions;
+
+    // Package visibility (Android 11+): the Apps sheet lists launcher apps so
+    // any of them can be added and guarded. Declaring the launcher intent is
+    // the narrow alternative to QUERY_ALL_PACKAGES.
+    const queries = manifest.manifest.queries || [];
+    const hasLauncherQuery = queries.some((q) =>
+      (q.intent || []).some((i) =>
+        (i.category || []).some((c) => c.$["android:name"] === "android.intent.category.LAUNCHER")
+      )
+    );
+    if (!hasLauncherQuery) {
+      queries.push({
+        intent: [
+          {
+            action: [{ $: { "android:name": "android.intent.action.MAIN" } }],
+            category: [{ $: { "android:name": "android.intent.category.LAUNCHER" } }],
+          },
+        ],
+      });
+    }
+    // The service steps aside for payment apps, and every UPI app (and most
+    // bank apps) takes upi:// links, so that is how they are found.
+    const hasUpiQuery = queries.some((q) =>
+      (q.intent || []).some((i) => (i.data || []).some((d) => d.$["android:scheme"] === "upi"))
+    );
+    if (!hasUpiQuery) {
+      queries.push({
+        intent: [
+          {
+            action: [{ $: { "android:name": "android.intent.action.VIEW" } }],
+            data: [{ $: { "android:scheme": "upi" } }],
+          },
+        ],
+      });
+    }
+    // The payment watch counts going home as leaving the payment app, so it
+    // must see the home screen app, which may have no launcher icon.
+    const hasHomeQuery = queries.some((q) =>
+      (q.intent || []).some((i) =>
+        (i.category || []).some((c) => c.$["android:name"] === "android.intent.category.HOME")
+      )
+    );
+    if (!hasHomeQuery) {
+      queries.push({
+        intent: [
+          {
+            action: [{ $: { "android:name": "android.intent.action.MAIN" } }],
+            category: [{ $: { "android:name": "android.intent.category.HOME" } }],
+          },
+        ],
+      });
+    }
+    manifest.manifest.queries = queries;
 
     // The AccessibilityService declaration.
     const application = AndroidConfig.Manifest.getMainApplicationOrThrow(manifest);
@@ -200,6 +256,28 @@ function withReelCounterManifest(config) {
           "android:name": ".PaymentResumeReceiver",
           "android:exported": "false",
         },
+      });
+    }
+
+    // Puts the service back after a reboot or an app update (again only with
+    // WRITE_SECURE_SETTINGS). Both broadcasts are system-only.
+    const restoreDeclared = application.receiver.some(
+      (r) => r.$["android:name"] === ".ServiceRestoreReceiver"
+    );
+    if (!restoreDeclared) {
+      application.receiver.push({
+        $: {
+          "android:name": ".ServiceRestoreReceiver",
+          "android:exported": "true",
+        },
+        "intent-filter": [
+          {
+            action: [
+              { $: { "android:name": "android.intent.action.BOOT_COMPLETED" } },
+              { $: { "android:name": "android.intent.action.MY_PACKAGE_REPLACED" } },
+            ],
+          },
+        ],
       });
     }
 

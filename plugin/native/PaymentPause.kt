@@ -11,6 +11,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -25,24 +26,25 @@ import android.util.Log
  * overlay or event-filter change can satisfy it. The only thing that does is
  * the service not being enabled while the payment app is up.
  *
- * So: when one of [packages] comes to the foreground, the service records the
- * pause in prefs, posts a notification, and calls disableSelf(). Turning back
- * on is normally the user's job (Android gives an app no way to re-enable its
- * own service), which the app makes a one-tap trip to the right settings
- * screen. On a phone where WRITE_SECURE_SETTINGS has been granted over adb,
- * Wilt re-enables itself: at once from the app, the moment the user leaves
- * the payment app when Usage access is granted too ([PaymentWatchService]),
- * and from an alarm four minutes after the pause as the backstop.
+ * So: when one of the [paymentApps] found on the phone comes to the
+ * foreground, the service records the pause in prefs, posts a notification,
+ * and calls disableSelf(). Nothing else turns it off. Turning back on is
+ * normally the user's job (Android gives an app no way to re-enable its own
+ * service), which the app makes a one-tap trip to the right settings screen.
+ * On a phone where WRITE_SECURE_SETTINGS has been granted over adb, Wilt
+ * re-enables itself: when the app is opened, the moment the user leaves the
+ * payment app when Usage access is granted too ([PaymentWatchService]), and
+ * from an alarm that keeps checking until the service is back.
  */
 object PaymentPause {
 
     /**
-     * UPI and banking apps that block, or are likely to block, on an enabled
-     * accessibility service. Package to app label. Which apps block cannot be
-     * detected at runtime, so this list is the backstop for apps that do not
-     * hide their screen (see [HIDDEN_WINDOW]); a wrong package here is harmless.
+     * UPI and banking apps known to block, or likely to. Package to app label.
+     * Detection ([paymentApps]) finds most of these on its own; the list
+     * catches the ones it cannot tell from the outside (no upi:// handler, no
+     * telling name), and a package that is not installed costs nothing.
      */
-    val packages: Map<String, String> = linkedMapOf(
+    private val known: Map<String, String> = linkedMapOf(
         // UPI and wallets
         "net.one97.paytm" to "Paytm",
         "com.phonepe.app" to "PhonePe",
@@ -92,27 +94,137 @@ object PaymentPause {
     const val PREF_PACKAGE = "paymentPausePackage"
     const val PREF_LABEL = "paymentPauseLabel"
     const val PREF_AT = "paymentPausedAt"
+    /** Set by "Leave it off for now", cleared when the service connects again. */
+    const val PREF_LEFT_OFF = "serviceLeftOff"
 
     private const val CHANNEL_ID = "wilt_payment_pause"
     const val NOTIFICATION_ID = 7031
     private const val RESUME_REQUEST = 7032
     private const val AUTO_RESUME_AFTER_MS = 4 * 60 * 1000L
+    /** First alarm when the watch is running: just after Android ends it. */
+    private const val WATCH_HANDOFF_MS = 3 * 60 * 1000L
+    /** How often the alarm looks again while the payment app is still in front. */
+    const val STILL_THERE_RECHECK_MS = 30 * 1000L
 
-    fun isPaymentApp(pkg: String?): Boolean = pkg != null && packages.containsKey(pkg)
+    // --- Finding payment apps ------------------------------------------------------
 
-    fun label(pkg: String): String = packages[pkg] ?: pkg
+    /** An installed payment app: its package, the label the user sees, and the titles its windows may carry. */
+    class PaymentApp(val pkg: String, val label: String, val titles: Set<String>)
+
+    @Volatile private var found: Map<String, PaymentApp>? = null
+    private var detecting = false
+    private var generation = 0
+
+    /** The [known] list on its own, while detection is still running. */
+    private val fallback: Map<String, PaymentApp> by lazy {
+        known.mapValues { (pkg, label) -> PaymentApp(pkg, label, setOf(label)) }
+    }
+
+    /**
+     * Every installed app Wilt steps aside for, found on the phone rather
+     * than listed: anything that takes upi:// payment links (every UPI app and
+     * most bank apps), anything whose name or package says bank, UPI, pay or
+     * wallet, and the [known] apps. Worked out once, in the background (it
+     * loads every launcher app's label, about two seconds), and kept until an
+     * app is installed or removed ([forget]). Until then, the [known] list.
+     */
+    fun paymentApps(context: Context): Map<String, PaymentApp> {
+        found?.let { return it }
+        detectInBackground(context)
+        return fallback
+    }
+
+    fun detectInBackground(context: Context) {
+        val gen = synchronized(this) {
+            if (detecting || found != null) return
+            detecting = true
+            generation
+        }
+        val app = context.applicationContext
+        Thread {
+            val apps = runCatching { detect(app) }.getOrNull()
+            synchronized(this) {
+                detecting = false
+                // An install during the scan makes this result stale; scan again.
+                if (gen == generation && apps != null) found = apps
+            }
+            if (gen != generation) detectInBackground(app)
+        }.start()
+    }
+
+    /** An app was installed or removed; work the list out again. */
+    fun forget(context: Context) {
+        synchronized(this) {
+            generation++
+            found = null
+        }
+        detectInBackground(context)
+    }
+
+    fun isPaymentApp(context: Context, pkg: String?): Boolean =
+        pkg != null && paymentApps(context).containsKey(pkg)
+
+    fun label(context: Context, pkg: String): String =
+        paymentApps(context)[pkg]?.label ?: known[pkg] ?: pkg
 
     /**
      * Reverse lookup from a window title. When an app hides its content from
      * accessibility services the window's title (its app label) is all we get,
      * so "Paytm" or "Paytm Something" maps to Paytm. Whole-word prefix only, so
-     * a short label such as "Fi" cannot match "Files".
+     * a short label such as "Fi" cannot match "Files". Only payment apps are
+     * matched: a hidden screen from anything else (a permission dialog, a
+     * password manager) is left alone.
      */
-    fun packageForTitle(title: String?): String? {
+    fun packageForTitle(context: Context, title: String?): String? {
         val t = title?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        return packages.entries.firstOrNull { (_, label) ->
-            t.equals(label, ignoreCase = true) || t.startsWith("$label ", ignoreCase = true)
-        }?.key
+        return paymentApps(context).values.firstOrNull { app ->
+            app.titles.any { t.equals(it, ignoreCase = true) || t.startsWith("$it ", ignoreCase = true) }
+        }?.pkg
+    }
+
+    private val NAME_WORDS = Regex("""\b(bank|banking|upi|wallet|pay)\b""", RegexOption.IGNORE_CASE)
+
+    /** A label or package that says what the app is: "HDFC Bank", "Google Pay", com.kvb.mobilebanking. */
+    private fun looksLikePayment(pkg: String, label: String): Boolean {
+        if (NAME_WORDS.containsMatchIn(label)) return true
+        return pkg.lowercase().split('.', '_').any { part ->
+            "bank" in part || "wallet" in part || "paisa" in part ||
+                part.startsWith("upi") || part.startsWith("money") ||
+                part.startsWith("pay") || part.endsWith("pay")
+        }
+    }
+
+    private fun detect(context: Context): Map<String, PaymentApp> {
+        val pm = context.packageManager
+        val upi = runCatching {
+            pm.queryIntentActivities(Intent(Intent.ACTION_VIEW, Uri.parse("upi://pay")), 0)
+                .map { it.activityInfo.packageName }.toSet()
+        }.getOrDefault(emptySet())
+        val launchers = runCatching {
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        }.getOrDefault(emptyList())
+        val apps = linkedMapOf<String, PaymentApp>()
+        val skip = setOf(context.packageName, "com.instagram.android", "com.google.android.youtube")
+        for (info in launchers) {
+            val pkg = info.activityInfo.packageName
+            if (pkg in skip) continue
+            val appLabel = runCatching { info.activityInfo.applicationInfo.loadLabel(pm).toString().trim() }
+                .getOrDefault("")
+            val activityLabel = runCatching { info.loadLabel(pm).toString().trim() }.getOrDefault("")
+            if (pkg !in known && pkg !in upi && !looksLikePayment(pkg, appLabel)) continue
+            val label = appLabel.ifEmpty { known[pkg] ?: pkg }
+            val titles = (apps[pkg]?.titles.orEmpty() + listOfNotNull(appLabel, activityLabel, known[pkg]))
+                .filter { it.isNotEmpty() }.toSet()
+            apps[pkg] = PaymentApp(pkg, label, titles)
+        }
+        // A payment handler with no launcher entry still counts when it comes up.
+        for (pkg in upi - apps.keys - skip) {
+            val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }
+                .getOrDefault(known[pkg] ?: pkg)
+            apps[pkg] = PaymentApp(pkg, label, setOf(label))
+        }
+        Log.i(TAG, "payment apps: ${apps.values.joinToString { "${it.label} (${it.pkg})" }}")
+        return apps
     }
 
     private fun prefs(context: Context) =
@@ -122,13 +234,12 @@ object PaymentPause {
         ComponentName(context, ReelAccessibilityService::class.java)
 
     /**
-     * Record the pause before the service disables itself. [label] is what the
-     * user sees; it defaults to the list entry and otherwise to the window title
-     * of an app that hid its content (see [HIDDEN_WINDOW]). With the adb grants
-     * in place this also arms the way back: the alarm always, and the
-     * leave-the-app watch when Usage access allows it.
+     * Record the pause before the service disables itself. With the adb grants
+     * in place this also arms the way back: the leave-the-app watch when Usage
+     * access allows it, and the alarm always, which takes over once the watch
+     * runs out (Android caps it at about three minutes).
      */
-    fun markPaused(context: Context, pkg: String, label: String = label(pkg)) {
+    fun markPaused(context: Context, pkg: String, label: String = label(context, pkg)) {
         prefs(context).edit()
             .putString(PREF_PACKAGE, pkg)
             .putString(PREF_LABEL, label)
@@ -136,19 +247,9 @@ object PaymentPause {
             .apply()
         notifyPaused(context, label)
         if (!canWriteSecureSettings(context)) return
-        scheduleAutoResume(context)
-        if (PaymentWatchService.canWatch(context)) PaymentWatchService.start(context, pkg, label)
+        val watching = PaymentWatchService.canWatch(context) && PaymentWatchService.start(context, pkg, label)
+        scheduleResume(context, if (watching) WATCH_HANDOFF_MS else AUTO_RESUME_AFTER_MS, attempt = 0)
     }
-
-    /**
-     * Pseudo package recorded when the pause was triggered not by the list but
-     * by an app hiding its screen from accessibility services. Android 14's
-     * accessibilityDataSensitive does exactly that for non-tool services, and
-     * the apps that use it are the security-minded ones that also refuse to run
-     * beside an enabled service, so the hidden screen itself is the signal.
-     * [PaymentWatchService] learns the real package from the usage log.
-     */
-    const val HIDDEN_WINDOW = "hidden-window"
 
     /** Both grants present: the service comes back as soon as the user leaves the app. */
     fun resumesOnLeave(context: Context): Boolean =
@@ -156,7 +257,9 @@ object PaymentPause {
 
     /** The service is back on: forget the pause and its reminders. */
     fun clearPaused(context: Context) {
-        prefs(context).edit().remove(PREF_PACKAGE).remove(PREF_LABEL).remove(PREF_AT).apply()
+        prefs(context).edit()
+            .remove(PREF_PACKAGE).remove(PREF_LABEL).remove(PREF_AT).remove(PREF_LEFT_OFF)
+            .apply()
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
             ?.cancel(NOTIFICATION_ID)
         cancelAutoResume(context)
@@ -170,6 +273,35 @@ object PaymentPause {
     }
 
     fun pausedPackage(context: Context): String? = prefs(context).getString(PREF_PACKAGE, null)
+
+    fun leftOff(context: Context): Boolean = prefs(context).getBoolean(PREF_LEFT_OFF, false)
+
+    /**
+     * After a reboot or an app update: put the service back if it was set up
+     * and the user did not choose to leave it off. An update can drop it from
+     * the enabled list or leave it bound but never connected; [enableService]
+     * turns it off and on, which fixes both. Blocks for half a second.
+     */
+    fun restore(context: Context, reason: String) {
+        val p = prefs(context)
+        val setUp = p.getLong("lastConnectedAt", 0L) > 0L
+        if (!setUp || leftOff(context) || !canWriteSecureSettings(context)) return
+        Log.i(TAG, "restoring the accessibility service: $reason")
+        if (enableService(context)) scheduleVerify(context, attempt = 1)
+    }
+
+    /**
+     * True while the paused-for app is still in front, as far as Usage access
+     * can tell: no other app has come up since the pause. Null without Usage
+     * access, when there is no telling.
+     */
+    fun stillInPausedApp(context: Context): Boolean? {
+        if (!PaymentWatchService.canWatch(context)) return null
+        val pkg = pausedPackage(context) ?: return false
+        val since = prefs(context).getLong(PREF_AT, 0L)
+        val front = PaymentWatchService.frontPackage(context, since) ?: return true
+        return front == pkg
+    }
 
     // --- Re-enabling -------------------------------------------------------------
 
@@ -190,6 +322,9 @@ object PaymentPause {
         if (!canWriteSecureSettings(context)) return false
         val id = serviceComponent(context).flattenToString()
         val resolver = context.contentResolver
+        // Before the writes: the service can connect within the half second below,
+        // and its heartbeat must land after this to count as the attempt taking.
+        prefs(context).edit().putLong(PREF_RESUME_TRIED_AT, System.currentTimeMillis()).commit()
         return runCatching {
             val current = Settings.Secure.getString(
                 resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -208,15 +343,21 @@ object PaymentPause {
                 resolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, (others + id).joinToString(":")
             )
             Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
-            Log.i(TAG, "re-enabled accessibility service after payment pause")
+            Log.i(TAG, "re-enabled accessibility service")
             true
         }.onFailure { Log.w(TAG, "re-enable failed", it) }.getOrDefault(false)
     }
 
-    /** Heartbeat the service writes in onServiceConnected; newer than the pause means it is back. */
-    fun reconnectedSincePause(context: Context): Boolean {
+    private const val PREF_RESUME_TRIED_AT = "resumeTriedAt"
+
+    /**
+     * Heartbeat the service writes in onServiceConnected; newer than the last
+     * attempt to turn it on (the pause itself, or a [restore]) means it is back.
+     */
+    fun reconnectedSinceAttempt(context: Context): Boolean {
         val p = prefs(context)
-        return p.getLong("lastConnectedAt", 0L) > p.getLong(PREF_AT, Long.MAX_VALUE)
+        val since = maxOf(p.getLong(PREF_AT, 0L), p.getLong(PREF_RESUME_TRIED_AT, 0L))
+        return p.getLong("lastConnectedAt", 0L) > since
     }
 
     /**
@@ -245,22 +386,21 @@ object PaymentPause {
      * set() from a background app is held indefinitely under Battery Saver.
      */
     private const val VERIFY_AFTER_MS = 60 * 1000L
-    private const val MAX_RETRIES = 3
+    /** Ten minutes of rebind attempts; waiting on the payment app does not count. */
+    private const val MAX_RETRIES = 10
     const val EXTRA_ATTEMPT = "attempt"
-
-    private fun scheduleAutoResume(context: Context) = scheduleResume(context, AUTO_RESUME_AFTER_MS, attempt = 0)
 
     /**
      * After a resume attempt, look again a minute later: if the service has
-     * not written its heartbeat since the pause, the rebind did not take and
-     * the attempt is repeated, up to [MAX_RETRIES] times.
+     * not written its heartbeat since, the rebind did not take and the attempt
+     * is repeated, up to [MAX_RETRIES] times.
      */
     fun scheduleVerify(context: Context, attempt: Int) {
         if (attempt >= MAX_RETRIES) { Log.w(TAG, "auto-resume gave up after $attempt attempts"); return }
         scheduleResume(context, VERIFY_AFTER_MS, attempt)
     }
 
-    private fun scheduleResume(context: Context, delayMs: Long, attempt: Int) {
+    fun scheduleResume(context: Context, delayMs: Long, attempt: Int) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val at = System.currentTimeMillis() + delayMs
         val pending = resumePendingIntent(context, attempt)
@@ -331,7 +471,7 @@ object PaymentPause {
         val body = if (auto && PaymentWatchService.canWatch(context)) {
             "$appLabel blocks payments while Wilt is on. It comes back on its own as soon as you leave $appLabel, or tap to turn it on now."
         } else if (auto) {
-            "$appLabel blocks payments while Wilt is on. It comes back on its own in 4 minutes, or tap to turn it on now."
+            "$appLabel blocks payments while Wilt is on. It comes back on its own in 4 minutes, or when you open Wilt."
         } else {
             "$appLabel blocks payments while Wilt is on. Tap to turn it back on when you are done."
         }
@@ -354,23 +494,51 @@ object PaymentPause {
 }
 
 /**
- * Fires a few minutes after a payment pause, only on phones where the app can
- * write secure settings. Re-enables the service so a pause the user forgot
- * about does not silently switch counting off for the rest of the day. If the
- * payment app is still up at that moment its next check will block again, and
- * the service simply pauses once more.
+ * Fires after a payment pause (and after each resume attempt), only on phones
+ * where the app can write secure settings. While Usage access shows the
+ * payment app still in front it simply looks again shortly, so the service is
+ * never switched on in the middle of a payment. Otherwise it re-enables the
+ * service and checks a minute later that it really connected, so a pause the
+ * user forgot about does not switch counting off for the rest of the day.
  */
 class PaymentResumeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val paused = PaymentPause.pausedPackage(context)
         val attempt = intent?.getIntExtra(PaymentPause.EXTRA_ATTEMPT, 0) ?: 0
-        val back = PaymentPause.reconnectedSincePause(context)
-        Log.d("Wilt", "auto-resume alarm: paused=$paused attempt=$attempt reconnected=$back")
-        if (paused == null || back) return
+        val back = PaymentPause.reconnectedSinceAttempt(context)
+        val stillThere = paused != null && PaymentPause.stillInPausedApp(context) == true
+        Log.d("Wilt", "auto-resume alarm: paused=$paused attempt=$attempt reconnected=$back stillThere=$stillThere")
+        if (back || PaymentPause.leftOff(context)) return
+        // A restore after a reboot or update carries no pause; it only verifies.
+        if (paused == null && attempt == 0) return
+        if (stillThere) {
+            PaymentPause.scheduleResume(context, PaymentPause.STILL_THERE_RECHECK_MS, attempt)
+            return
+        }
         val pending = goAsync()
         Thread {
             try {
                 if (PaymentPause.enableService(context)) PaymentPause.scheduleVerify(context, attempt + 1)
+            } finally {
+                pending.finish()
+            }
+        }.start()
+    }
+}
+
+/**
+ * After a reboot or an app update, put the service back on (see
+ * [PaymentPause.restore]). Updates are the usual way it goes missing: a
+ * reinstall can drop it from the enabled list or leave it bound but silent.
+ */
+class ServiceRestoreReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        val pending = goAsync()
+        Thread {
+            try {
+                PaymentPause.restore(context, action.substringAfterLast('.'))
             } finally {
                 pending.finish()
             }

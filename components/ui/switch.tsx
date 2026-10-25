@@ -9,7 +9,7 @@ import Animated, {
 import { tv, type VariantProps } from 'tailwind-variants';
 import { useDirectionSign } from '@/hooks/use-direction';
 import { NativeHost, getNativeUI } from '@/lib/native';
-import { selectionTick } from '@/lib/haptics';
+import { feel } from '@/lib/haptics';
 import { useFieldLabelledBy } from '@/components/ui/field';
 
 const SPRING = { damping: 18, stiffness: 250, mass: 0.5 } as const;
@@ -172,7 +172,7 @@ export const Switch = forwardRef<View, SwitchProps>(
         }
         disabled={disabled}
         onPress={() => {
-          if (haptics) selectionTick();
+          if (haptics) feel(value ? 'toggleOff' : 'toggleOn');
           onValueChange?.(!value);
         }}
         hitSlop={SWITCH_HIT_SLOP[size]}

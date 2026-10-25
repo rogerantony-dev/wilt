@@ -20,6 +20,9 @@ import HgTickCircle from "@hugeicons/core-free-icons/CheckmarkCircle02Icon";
 import HgGithub from "@hugeicons/core-free-icons/Github01Icon";
 import HgLinkOut from "@hugeicons/core-free-icons/LinkSquare01Icon";
 import HgSparkles from "@hugeicons/core-free-icons/SparklesIcon";
+import HgSliders from "@hugeicons/core-free-icons/SlidersHorizontalIcon";
+import HgInstagram from "@hugeicons/core-free-icons/InstagramIcon";
+import HgYoutube from "@hugeicons/core-free-icons/YoutubeIcon";
 
 export type IconProps = { size?: number; color?: string; strokeWidth?: number };
 
@@ -46,3 +49,6 @@ export const TickCircleIcon = make(HgTickCircle, 14);
 export const GithubIcon = make(HgGithub, 13);
 export const LinkOutIcon = make(HgLinkOut, 11);
 export const SparklesIcon = make(HgSparkles);
+export const SlidersIcon = make(HgSliders);
+export const InstagramIcon = make(HgInstagram, 16);
+export const YoutubeIcon = make(HgYoutube, 16);

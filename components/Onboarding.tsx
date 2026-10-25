@@ -57,6 +57,7 @@ import { CatHead } from "./CatHead";
 import { DiscHero } from "./DiscHero";
 import { translateXScaleY } from "./catmatrix";
 import { useMountEffect } from "./useMountEffect";
+import { feel } from "../lib/haptics";
 import { setLimitNow, setMode, type WiltMode } from "../modules/wiltnative";
 import { LIMIT_OPTIONS } from "./progress";
 import { limitColor, withAlpha } from "./limitramp";
@@ -68,10 +69,6 @@ const WASTE = "#E0913C";
 const OVER = "#D2542F";
 const HAIR = "rgba(242,241,236,0.10)";
 const PAGES = 5;
-
-function openAccessibilitySettings() {
-  IntentLauncher.startActivityAsync("android.settings.ACCESSIBILITY_SETTINGS").catch(() => {});
-}
 
 function openOverlaySettings() {
   IntentLauncher.startActivityAsync(
@@ -95,10 +92,16 @@ function openOverlaySettings() {
 export function OnboardingFlow({
   overlayDone,
   accessibilityDone,
+  canTurnOn,
+  onTurnOnService,
   onFinish,
 }: {
   overlayDone: boolean;
   accessibilityDone: boolean;
+  /** The app can switch its own service on (WRITE_SECURE_SETTINGS over adb). */
+  canTurnOn: boolean;
+  /** Turns the service on directly when it can, else opens Settings. */
+  onTurnOnService: () => void;
   onFinish: () => void;
 }) {
   const { width } = useWindowDimensions();
@@ -135,6 +138,7 @@ export function OnboardingFlow({
   const [selMode, setSelMode] = useState<WiltMode>("guilt");
   const [lim, setLim] = useState(30);
   const chooseMode = (m: WiltMode) => {
+    if (m !== selMode) feel("tick");
     setSelMode(m);
     setMode(m);
   };
@@ -164,9 +168,11 @@ export function OnboardingFlow({
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
-          onMomentumScrollEnd={(e) =>
-            setPage(Math.round(e.nativeEvent.contentOffset.x / width))
-          }
+          onMomentumScrollEnd={(e) => {
+            const next = Math.round(e.nativeEvent.contentOffset.x / width);
+            if (next !== page) feel("tick"); // a page came to rest under a swipe
+            setPage(next);
+          }}
         >
           {/* 0 — Cold open: a feed slides by, a number climbs. */}
           <View style={pageStyle} className="overflow-hidden px-6 pb-3 pt-3">
@@ -251,7 +257,7 @@ export function OnboardingFlow({
 
           {/* 4 — The two switches. */}
           <View style={pageStyle} className="px-6 pb-3 pt-3">
-            <Header on={false} />
+            <Header />
             <View className="flex-1 justify-center">
               <Drift index={4} scrollX={scrollX} width={width} shift={14}>
                 <Copy align="left" title="Almost there." />
@@ -263,15 +269,18 @@ export function OnboardingFlow({
                     title="Draw over apps"
                     body="So the timer can float on the feed."
                     action="Open overlay permission"
-                    onPress={openOverlaySettings}
+                    onPress={() => {
+                      feel("tap");
+                      openOverlaySettings();
+                    }}
                     first
                   />
                   <SwitchRow
                     on={accessibilityDone}
                     title="Accessibility service"
-                    body="Find “Wilt Reel Counter” and turn it on."
-                    action="Open settings"
-                    onPress={openAccessibilitySettings}
+                    body={canTurnOn ? "One tap and it's on." : "Find “Wilt Reel Counter” and turn it on."}
+                    action={canTurnOn ? "Turn on" : "Open settings"}
+                    onPress={onTurnOnService}
                   />
                 </View>
                 <View className="mt-5 flex-row items-start gap-2">
@@ -801,6 +810,7 @@ function ReadyScreen({ onFinish }: { onFinish: () => void }) {
   const dart = useSharedValue(0.5);
   const blink = useSharedValue(0);
   useMountEffect(() => {
+    feel("confirm"); // both switches on: the one moment the setup lands
     enter.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
     if (reduceMotion) return;
     breathe.value = withRepeat(withTiming(1, { duration: 1700, easing: Easing.inOut(Easing.sin) }), -1, true);
@@ -866,10 +876,10 @@ function ReadyScreen({ onFinish }: { onFinish: () => void }) {
 /* Shared bits                                                         */
 /* ------------------------------------------------------------------ */
 
-function Header({ onSkip, on = true }: { onSkip?: () => void; on?: boolean }) {
+function Header({ onSkip }: { onSkip?: () => void }) {
   return (
     <View className="h-6 flex-row items-center justify-between">
-      <Brand on={on} />
+      <Brand />
       {onSkip ? (
         <Button variant="ghost" size="sm" className="-mr-2.5 px-2.5" labelClassName="text-[13px] font-semibold text-dim" onPress={onSkip}>
           Skip

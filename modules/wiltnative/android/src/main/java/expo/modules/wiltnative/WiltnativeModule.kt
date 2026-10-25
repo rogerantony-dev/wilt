@@ -19,6 +19,8 @@ import java.util.Locale
  */
 class WiltnativeModule : Module() {
   private val MAX_EXTRA_MINUTES = 3
+  // PaymentPause.NOTIFICATION_ID in the app; this module cannot see app classes.
+  private val PAUSE_NOTIFICATION_ID = 7031
 
   override fun definition() = ModuleDefinition {
     Name("Wilt")
@@ -44,7 +46,51 @@ class WiltnativeModule : Module() {
         "paymentPauseApp" to paymentPauseApp(context),
         "canAutoResume" to canWriteSecureSettings(context),
         "resumesOnLeave" to (canWriteSecureSettings(context) && canReadUsage(context)),
+        "surfaces" to (Surfaces.ALL + Surfaces.customApps(prefs(context)).map { Surfaces.appKey(it) })
+          .associateWith { Surfaces.isGuarded(prefs(context), it) },
+        "customApps" to Surfaces.customApps(prefs(context))
+          .map { appInfo(context, it) }
+          .sortedBy { (it["label"] as String).lowercase() },
+        "surfacesPendingOff" to Surfaces.pendingOff(prefs(context)).toList(),
       )
+    }
+
+    // Every app with a launcher icon that could be added to the Apps sheet,
+    // A to Z: not Wilt, not Instagram/YouTube (they have their own groups),
+    // not ones already added. Each is { pkg, label, icon } with a PNG data URI.
+    Function("listApps") {
+      val context = appContext.reactContext?.applicationContext
+        ?: return@Function emptyList<Map<String, Any?>>()
+      val pm = context.packageManager
+      val skip = Surfaces.customApps(prefs(context)) +
+        setOf(context.packageName, "com.instagram.android", "com.google.android.youtube")
+      val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN)
+        .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+      pm.queryIntentActivities(launcher, 0)
+        .map { it.activityInfo.packageName }
+        .distinct()
+        .filter { it !in skip }
+        .map { appInfo(context, it) }
+        .sortedBy { (it["label"] as String).lowercase() }
+    }
+
+    // Add an app to the Apps sheet, guarded from now.
+    Function("addApp") { pkg: String ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      Surfaces.addCustomApp(prefs(context), pkg)
+    }
+
+    // Take an added app off the sheet; false while it is still guarded.
+    Function("removeApp") { pkg: String ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      Surfaces.removeCustomApp(prefs(context), pkg)
+    }
+
+    // Guard a part of Instagram/YouTube now, or queue it to stop being guarded
+    // at the next reset (see Surfaces).
+    Function("setSurface") { key: String, on: Boolean ->
+      val context = appContext.reactContext?.applicationContext ?: return@Function
+      Surfaces.set(prefs(context), key, on)
     }
 
     // After a payment pause: turn the service back on directly when the phone
@@ -52,13 +98,20 @@ class WiltnativeModule : Module() {
     // Settings > Accessibility on Wilt's entry and return false.
     Function("resumeAfterPayment") {
       val context = appContext.reactContext?.applicationContext ?: return@Function false
-      if (enableService(context)) return@Function true
-      openServiceSettings(context)
-      false
+      turnOnService(context)
+    }
+
+    // Same, for any "turn it on" in the app (onboarding's switch included):
+    // the service comes back without a trip to Settings whenever it can.
+    Function("turnOnService") {
+      val context = appContext.reactContext?.applicationContext ?: return@Function false
+      turnOnService(context)
     }
 
     // Drop the "paused for payments" record without turning the service on, so
     // the app falls back to plain setup instead of nagging about the pause.
+    // serviceLeftOff stops the resume alarm and the reboot/update restore from
+    // turning it back on behind the user's back; it clears once it reconnects.
     Function("dismissPaymentPause") {
       val context = appContext.reactContext?.applicationContext
       if (context != null) {
@@ -66,7 +119,10 @@ class WiltnativeModule : Module() {
           .remove("paymentPausePackage")
           .remove("paymentPauseLabel")
           .remove("paymentPausedAt")
+          .putBoolean("serviceLeftOff", true)
           .apply()
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager)
+          ?.cancel(PAUSE_NOTIFICATION_ID)
       }
     }
 
@@ -119,13 +175,6 @@ class WiltnativeModule : Module() {
       history(context)
     }
 
-    Function("consumeOpenCats") {
-      val context = appContext.reactContext?.applicationContext ?: return@Function false
-      val p = prefs(context)
-      val v = p.getBoolean("openCats", false)
-      if (v) p.edit().putBoolean("openCats", false).apply()
-      v
-    }
 
     Function("markStreakCelebrated") { milestone: Int ->
       val context = appContext.reactContext?.applicationContext ?: return@Function
@@ -168,7 +217,34 @@ class WiltnativeModule : Module() {
     "paymentPauseApp" to null,
     "canAutoResume" to false,
     "resumesOnLeave" to false,
+    "surfaces" to emptyMap<String, Boolean>(),
+    "surfacesPendingOff" to emptyList<String>(),
+    "customApps" to emptyList<Map<String, Any?>>(),
   )
+
+  // Icons are drawn once per package per process: getStatus runs often.
+  private val iconCache = HashMap<String, String?>()
+
+  /** { pkg, label, icon } for [pkg]; the label falls back to the package when it is gone. */
+  private fun appInfo(context: Context, pkg: String): Map<String, Any?> {
+    val pm = context.packageManager
+    val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }
+      .getOrDefault(pkg)
+    val icon = iconCache.getOrPut(pkg) {
+      runCatching {
+        val size = 96
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+        pm.getApplicationIcon(pkg).apply {
+          setBounds(0, 0, size, size)
+          draw(android.graphics.Canvas(bitmap))
+        }
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+        "data:image/png;base64," + android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+      }.getOrNull()
+    }
+    return mapOf("pkg" to pkg, "label" to label, "icon" to icon)
+  }
 
   private fun prefs(context: Context) =
     context.getSharedPreferences("wilt_reels", Context.MODE_PRIVATE)
@@ -257,6 +333,13 @@ class WiltnativeModule : Module() {
   private fun canWriteSecureSettings(context: Context): Boolean =
     context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) ==
       android.content.pm.PackageManager.PERMISSION_GRANTED
+
+  /** On directly (true) when WRITE_SECURE_SETTINGS is granted, else Settings opens (false). */
+  private fun turnOnService(context: Context): Boolean {
+    if (enableService(context)) return true
+    openServiceSettings(context)
+    return false
+  }
 
   /** Append the service to the enabled list. Needs WRITE_SECURE_SETTINGS (adb only). */
   private fun enableService(context: Context): Boolean {

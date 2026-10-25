@@ -15,7 +15,6 @@ import { OnboardingFlow } from "./components/Onboarding";
 import { PaymentPauseScreen } from "./components/PaymentPause";
 import { Brand, C, Kicker } from "./components/console";
 import {
-  consumeOpenCats,
   dismissPaymentPause,
   getHistory,
   getStatus,
@@ -25,17 +24,23 @@ import {
   resumeAfterPayment,
   setLimit,
   setMode,
+  setSurface,
+  addApp,
+  removeApp,
   setUnlockedCats,
+  turnOnService,
   type WiltMode,
   type WiltStatus,
+  type WiltSurface,
 } from "./modules/wiltnative";
 import { computeProgress, type Progress } from "./components/progress";
 import { CAT_THRESHOLDS } from "./components/cats";
 import { MilestoneModal } from "./components/MilestoneModal";
 import { Sheet } from "./components/Sheet";
+import { AppsSheet } from "./components/AppsSheet";
 import { DiscHero } from "./components/DiscHero";
-import { ChartIcon, ChevronDownIcon, HourglassIcon, LockIcon, PawIcon, PlusIcon, ShieldIcon, StopwatchIcon } from "./components/icons";
-import { AmbientField } from "./components/AmbientField";
+import { ChartIcon, ChevronDownIcon, HourglassIcon, LockIcon, PawIcon, PlusIcon, ShieldIcon, SlidersIcon, StopwatchIcon } from "./components/icons";
+import { AmbientField, DayAccent } from "./components/AmbientField";
 import { decayStage, stageT } from "./components/catdecay";
 import { timeLeftState } from "./components/timeleft";
 import { LimitSlider } from "./components/LimitSlider";
@@ -43,6 +48,7 @@ import { PanelUIProvider } from "./components/ui/panel-ui-provider";
 import { Alert } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { AccentButton, GhostButton, GLASS, PrimaryButton } from "./components/kit";
+import { feel } from "./lib/haptics";
 import { Tabs } from "./components/ui/tabs";
 import { Text } from "./components/ui/text";
 import { Typography } from "./components/ui/typography";
@@ -68,6 +74,7 @@ export default function App() {
   const [screen, setScreen] = useState<"home" | "history">("home");
   const [catsOpen, setCatsOpen] = useState(false);
   const [limitPickerOpen, setLimitPickerOpen] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
   const [milestone, setMilestone] = useState<{
     kind: "streak" | "cats";
     streak: number;
@@ -84,12 +91,6 @@ export default function App() {
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
 
-  // The accessibility service sets an openCats flag when "Watch a cat instead"
-  // is tapped on a nudge; consume it on resume and open the gallery.
-  const checkOpenCats = useCallback(() => {
-    if (consumeOpenCats()) setCatsOpen(true);
-  }, []);
-
   // Poll status for a few seconds after coming to the foreground. The
   // accessibility service writes its "connected" heartbeat a beat after you
   // flip the toggle, so a single read on resume can miss it and the setup
@@ -97,6 +98,10 @@ export default function App() {
   // permissions are live (so the tick lands and onboarding hands off to home).
   const syncStatus = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
+    // Wilt in front means the payment app is not: come back on by itself
+    // where the app may do that, instead of waiting on a tap.
+    const now = getStatus();
+    if (now?.paymentPauseApp && now.canAutoResume) resumeAfterPayment();
     let attempts = 0;
     const tick = () => {
       const next = getStatus();
@@ -119,11 +124,9 @@ export default function App() {
 
   useMountEffect(() => {
     syncStatus();
-    checkOpenCats();
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         syncStatus();
-        checkOpenCats();
       }
     });
     const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -167,6 +170,16 @@ export default function App() {
     if (resumeAfterPayment()) syncStatus();
   }, [syncStatus]);
 
+  // Onboarding's switch: on directly where the app may do it, else Settings.
+  const turnOn = useCallback(() => {
+    if (turnOnService()) {
+      feel("confirm");
+      syncStatus();
+    } else {
+      feel("tap"); // off to Settings
+    }
+  }, [syncStatus]);
+
   const dismissPause = useCallback(() => {
     dismissPaymentPause();
     refresh();
@@ -200,6 +213,7 @@ export default function App() {
 
   // Surface one pending moment when the app opens. A streak offer outranks cats.
   useMountEffect(() => {
+    if (progress.pendingLevelDown || progress.pendingCatUnlocks.length) feel("confirm");
     if (progress.pendingLevelDown) {
       setMilestone({
         kind: "streak",
@@ -261,6 +275,30 @@ export default function App() {
   // limit. Block holds a calm mid-level since nothing is being spent.
   const burn = mode === "block" ? 0.35 : Math.min(1, seconds / Math.max(1, limit * 60));
 
+  const toggleSurface = useCallback(
+    (keys: WiltSurface[], on: boolean) => {
+      for (const key of keys) setSurface(key, on);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const addGuardedApp = useCallback(
+    (pkg: string) => {
+      addApp(pkg);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const removeGuardedApp = useCallback(
+    (pkg: string) => {
+      removeApp(pkg);
+      refresh();
+    },
+    [refresh]
+  );
+
   const grantMinute = useCallback(() => {
     grantExtraMinute();
     refresh();
@@ -268,13 +306,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+    <DayAccent.Provider value={accent}>
     <PanelUIProvider>
       {/* SafeAreaView is not a core component, so it takes a style rather than a className. */}
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar style="light" />
         {Platform.OS !== "android" ? (
           <View className="grow px-6 pt-4">
-            <Brand on={false} />
+            <Brand />
             <View className="mt-10 rounded-3xl bg-card p-6">
               <Typography type="body-sm" muted className="leading-6">
                 The Reel counter is Android only. It relies on Android's overlay and accessibility
@@ -286,7 +325,7 @@ export default function App() {
           <View className="flex-1 overflow-hidden px-6 pb-6 pt-4">
               <AmbientField color={accent} level={burn} />
               <View className="flex-row items-center justify-between">
-                <Brand on={true} />
+                <Brand />
                 <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
               </View>
               <Dashboard
@@ -304,6 +343,7 @@ export default function App() {
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
                 onOpenCats={() => setCatsOpen(true)}
+                onOpenApps={() => setAppsOpen(true)}
               />
           </View>
         ) : paymentPauseApp ? (
@@ -318,6 +358,8 @@ export default function App() {
           <OnboardingFlow
             overlayDone={overlayDone}
             accessibilityDone={accessibilityDone}
+            canTurnOn={status?.canAutoResume === true}
+            onTurnOnService={turnOn}
             onFinish={() => setOnboardingFinished(true)}
           />
         )}
@@ -357,6 +399,17 @@ export default function App() {
 
       <HistoryScreen visible={screen === "history"} onClose={() => setScreen("home")} />
 
+      <AppsSheet
+        visible={appsOpen}
+        surfaces={status?.surfaces ?? {}}
+        pendingOff={status?.surfacesPendingOff ?? []}
+        customApps={status?.customApps ?? []}
+        onToggle={toggleSurface}
+        onAddApp={addGuardedApp}
+        onRemoveApp={removeGuardedApp}
+        onClose={() => setAppsOpen(false)}
+      />
+
       <LimitPicker
         visible={limitPickerOpen}
         value={limit}
@@ -365,6 +418,7 @@ export default function App() {
         onClose={() => setLimitPickerOpen(false)}
       />
     </PanelUIProvider>
+    </DayAccent.Provider>
     </SafeAreaProvider>
   );
 }
@@ -395,6 +449,7 @@ function Dashboard({
   onChangeMode,
   onOpenHistory,
   onOpenCats,
+  onOpenApps,
 }: {
   mode: WiltMode;
   seconds: number;
@@ -410,6 +465,7 @@ function Dashboard({
   onChangeMode: (mode: WiltMode) => void;
   onOpenHistory: () => void;
   onOpenCats: () => void;
+  onOpenApps: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
   const [slot, setSlot] = useState(0);
@@ -500,6 +556,7 @@ function Dashboard({
       <View className="flex-row gap-3 pt-5">
         <TrayButton icon={<PawIcon color={C.bone} />} label="Cats" onPress={onOpenCats} />
         <TrayButton icon={<ChartIcon color={C.bone} />} label="History" onPress={onOpenHistory} />
+        <TrayButton icon={<SlidersIcon color={C.bone} />} label="Apps" onPress={onOpenApps} />
       </View>
     </View>
   );
@@ -553,7 +610,7 @@ function TrayButton({
     <Button
       variant="secondary"
       size="lg"
-      className="flex-1 rounded-2xl"
+      className="flex-1 rounded-2xl px-2"
       style={GLASS}
       labelClassName="text-[15px] font-semibold"
       startContent={icon}
@@ -629,6 +686,7 @@ function LimitPicker({
         )}
         <PrimaryButton
           className="mt-4"
+          haptic="confirm"
           disabled={draft === value ? pendingLimit === 0 : draft === pendingLimit}
           onPress={() => onPick(draft)}
         >
@@ -657,7 +715,12 @@ function ModeSwitch({
     <Tabs
       value={mode}
       defaultValue={mode}
-      onValueChange={(v) => onChangeMode(v as WiltMode)}
+      onValueChange={(v) => {
+        // Walling reels off is a commitment; the way back is just a choice
+        // (its own sheet asks for the confirmation).
+        feel(v === "block" ? "confirm" : "tick");
+        onChangeMode(v as WiltMode);
+      }}
       variant="segmented"
     >
       {/* The old island: a solid track, the active cell raised, and green with
@@ -716,7 +779,9 @@ function PushThroughModal({
         </View>
         <View className="gap-2.5">
           <AccentButton onPress={onKeepBlocking}>Keep blocking</AccentButton>
-          <GhostButton onPress={onGiveIn}>I'll give in</GhostButton>
+          <GhostButton haptic="reject" onPress={onGiveIn}>
+            I'll give in
+          </GhostButton>
         </View>
       </View>
     </Sheet>

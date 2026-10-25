@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { IconColorProvider } from '@/components/ui/icons';
 import { NativeHost, getNativeUI, getSwiftUIModifiers } from '@/lib/native';
 import { Spinner } from '@/components/ui/spinner';
+import { feel, type Haptic } from '@/lib/haptics';
 
 const buttonVariants = tv({
   slots: {
@@ -228,6 +229,11 @@ export interface ButtonProps
    * `startContent` and always did.
    */
   systemImage?: string;
+  /**
+   * What a press feels like (see lib/haptics). A light tap by default; pass a
+   * stronger feel for a button that commits something, or false for none.
+   */
+  haptic?: Haptic | false;
 }
 
 /**
@@ -327,11 +333,19 @@ export const Button = forwardRef<View, ButtonProps>(
       systemImage,
       glass = false,
       accessibilityState,
+      haptic = 'tap',
+      onPress,
       ...props
     },
     ref
   ) => {
     const isDisabled = disabled || loading;
+    const press: typeof onPress = onPress
+      ? (event) => {
+          if (haptic) feel(haptic);
+          onPress(event);
+        }
+      : undefined;
     const nativeUI = native ? getNativeUI() : null;
 
     /*
@@ -448,7 +462,7 @@ export const Button = forwardRef<View, ButtonProps>(
              */
             style={hostFrame}
             modifiers={nativeModifiers.length ? nativeModifiers : undefined}
-            onPress={props.onPress}
+            onPress={press}
           >
             {/* Non-string children are React Native views, and the native
                 button cannot measure those directly — they have to be hosted
@@ -498,6 +512,7 @@ export const Button = forwardRef<View, ButtonProps>(
           pressScale={attached ? 1 : undefined}
           className={root({ className: cn(attached && ATTACHED, className) })}
           {...props}
+          onPress={press}
           accessibilityRole="button"
           accessibilityState={{ ...accessibilityState, disabled: isDisabled, busy: loading }}
         >
