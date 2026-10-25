@@ -29,11 +29,6 @@ import Animated, {
   type SharedValue,
 } from "react-native-reanimated";
 import { ChevronRightIcon, LockIcon, TickCircleIcon, TickIcon } from "./icons";
-import { HugeiconsIcon } from "@hugeicons/react-native";
-import HgInstagram from "@hugeicons/core-free-icons/InstagramIcon";
-import HgYoutube from "@hugeicons/core-free-icons/YoutubeIcon";
-import HgPlay from "@hugeicons/core-free-icons/PlayCircleIcon";
-import HgFilm from "@hugeicons/core-free-icons/FilmRoll01Icon";
 import Svg, {
   Circle,
   Defs,
@@ -52,8 +47,9 @@ import { Switch } from "./ui/switch";
 import { Typography } from "./ui/typography";
 
 import { Brand, C } from "./console";
+import { InstagramMark, YouTubeMark } from "./BrandMarks";
 import { CatHead } from "./CatHead";
-import { DiscHero } from "./DiscHero";
+import { EYE_Y } from "./catdecay";
 import { translateXScaleY } from "./catmatrix";
 import { useMountEffect } from "./useMountEffect";
 import { feel } from "../lib/haptics";
@@ -67,7 +63,7 @@ const ANDROID_PACKAGE = "com.rogerantony.wilt";
 const WASTE = "#E0913C";
 const OVER = "#D2542F";
 const HAIR = "rgba(242,241,236,0.10)";
-const PAGES = 5;
+const PAGES = 4;
 
 function openOverlaySettings() {
   IntentLauncher.startActivityAsync(
@@ -81,10 +77,10 @@ function openOverlaySettings() {
 }
 
 /**
- * First-run flow, cinematic cut: six swipeable pages with one picture and one
- * line each (a feed sliding by, the Kit-Cat clock, the cat wilting, the nudge
- * over a reel, mode + limit, the two permission switches), then a send-off
- * once both permissions are live. Art and copy drift in off the scroll offset
+ * First-run flow, cinematic cut: four swipeable pages with one picture and one
+ * line each (a feed sliding by, the cat wilting under thrown reels, mode +
+ * limit, the two permission switches), then a send-off once both permissions
+ * are live. Art and copy drift in off the scroll offset
  * so every arrival plays its entrance; loops (feed, wilt, blink) run on the UI
  * thread and rest still under reduced motion.
  */
@@ -120,7 +116,7 @@ export function OnboardingFlow({
   // resets when it leaves.
   const [wiltOn, setWiltOn] = useState(false);
   useAnimatedReaction(
-    () => width > 0 && Math.abs(scrollX.value - 2 * width) < 2,
+    () => width > 0 && Math.abs(scrollX.value - 1 * width) < 2,
     (on, prev) => {
       if (on !== prev) runOnJS(setWiltOn)(on);
     },
@@ -133,7 +129,7 @@ export function OnboardingFlow({
     setPage(c);
   };
 
-  // Mode + limit are chosen on page 4 and persisted as you tap.
+  // Mode + limit are chosen on the mode page and persisted as you tap.
   const [selMode, setSelMode] = useState<WiltMode>("guilt");
   const [lim, setLim] = useState(30);
   const chooseMode = (m: WiltMode) => {
@@ -158,7 +154,7 @@ export function OnboardingFlow({
       {/* The same field as the home screen, so the first run and the
           dashboard are one place. It takes the chosen rung colour on the
           mode page and stays a calm green elsewhere. */}
-      <AmbientField color={page === 3 && selMode === "guilt" ? limitColor(lim) : C.toxic} level={0.25} />
+      <AmbientField color={page === 2 && selMode === "guilt" ? limitColor(lim) : C.toxic} level={0.25} />
       <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
         <Animated.ScrollView
           ref={ref}
@@ -185,40 +181,27 @@ export function OnboardingFlow({
             </Drift>
           </View>
 
-          {/* 1 — The clock. */}
+          {/* 1 — The wilt. */}
           <View style={pageStyle} className="px-6 pb-3 pt-3">
             <Header onSkip={skip} />
             <Drift index={1} scrollX={scrollX} width={width} style={styles.stage}>
-              {/* The same disc as the home screen, part-way through a day, so
-                  the first run teaches the object you then live with. */}
-              <DiscHero color={WASTE} level={0.6} t={0.4} title="18 min left" subtitle="of 30 today" height={380} />
-            </Drift>
-            <Drift index={1} scrollX={scrollX} width={width} shift={26}>
-              <Copy title={"Your scroll,\nin one dial."} sub="It drains while you watch." />
-            </Drift>
-          </View>
-
-          {/* 2 — The wilt. */}
-          <View style={pageStyle} className="px-6 pb-3 pt-3">
-            <Header onSkip={skip} />
-            <Drift index={2} scrollX={scrollX} width={width} style={styles.stage}>
               {/* Keyed on arrival so the wilt remounts at its first frame and
                   only starts its loop once this page is the one on screen. */}
               <WiltArt key={wiltOn ? "playing" : "waiting"} playing={wiltOn} />
             </Drift>
-            <Drift index={2} scrollX={scrollX} width={width} shift={26}>
+            <Drift index={1} scrollX={scrollX} width={width} shift={26}>
               <Copy title={"Scroll on,\nand it wilts."} sub="Stop early and it stays a cat." />
             </Drift>
           </View>
 
-          {/* 3 — Mode and limit. */}
+          {/* 2 — Mode and limit. */}
           <View style={pageStyle} className="px-6 pb-3 pt-3">
             <Header />
             <View className="flex-1 justify-center">
-              <Drift index={3} scrollX={scrollX} width={width} shift={14}>
+              <Drift index={2} scrollX={scrollX} width={width} shift={14}>
                 <Copy align="left" title={"How should\nWilt step in?"} sub="Pick one. Change it anytime." />
               </Drift>
-              <Drift index={3} scrollX={scrollX} width={width} shift={30}>
+              <Drift index={2} scrollX={scrollX} width={width} shift={30}>
                 <View className="h-7" />
                 <ModeRow
                   selected={selMode === "guilt"}
@@ -254,14 +237,14 @@ export function OnboardingFlow({
             </View>
           </View>
 
-          {/* 4 — The two switches. */}
+          {/* 3 — The two switches. */}
           <View style={pageStyle} className="px-6 pb-3 pt-3">
             <Header />
             <View className="flex-1 justify-center">
-              <Drift index={4} scrollX={scrollX} width={width} shift={14}>
+              <Drift index={3} scrollX={scrollX} width={width} shift={14}>
                 <Copy align="left" title="Almost there." />
               </Drift>
-              <Drift index={4} scrollX={scrollX} width={width} shift={30}>
+              <Drift index={3} scrollX={scrollX} width={width} shift={30}>
                 <View className="mt-8 gap-2.5">
                   <SwitchRow
                     on={overlayDone}
@@ -303,7 +286,7 @@ export function OnboardingFlow({
           {/* On the permissions page the button stays, dimmed, until both
               switches are on; the footer never changes height. */}
           <Primary
-            label={page === 0 ? "Get started" : page === 3 || isLast ? "Continue" : "Next"}
+            label={page === 0 ? "Get started" : page === 2 || isLast ? "Continue" : "Next"}
             onPress={() => goTo(page + 1)}
             disabled={isLast}
           />
@@ -453,7 +436,7 @@ function Counter({ target }: { target: number }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Page 2: the wilt                                                    */
+/* Page 1: the wilt                                                    */
 /* ------------------------------------------------------------------ */
 
 const WILT_STAGES = [
@@ -464,70 +447,102 @@ const WILT_STAGES = [
   { t: 1, name: "Gone", left: 0, color: OVER, hold: 2200 },
 ];
 
-/** How long each thrown icon takes to reach the head, and the pause between. */
-const THROW_MS = 620;
-const THROW_GAP = 260;
-/** One thrown reel or short: where it leaves from and which glyph it is. */
-const THROWS: { from: number; glyph: number }[] = [
-  { from: -120, glyph: 0 },
-  { from: 118, glyph: 1 },
-  { from: -70, glyph: 2 },
-  { from: 128, glyph: 3 },
-  { from: -125, glyph: 1 },
-  { from: 70, glyph: 0 },
-  { from: 120, glyph: 2 },
-  { from: -100, glyph: 3 },
+/** A throw: the flight in, the bounce off after it hits, and the pause between throws. */
+const THROW_MS = 560;
+const RICOCHET_MS = 520;
+const THROW_GAP = 300;
+/** One thrown reel or short: which side it comes from, how high it hits, which app. */
+const THROWS: { from: number; hitY: number; app: "ig" | "yt" }[] = [
+  { from: -120, hitY: -24, app: "ig" },
+  { from: 118, hitY: -6, app: "yt" },
+  { from: -96, hitY: 4, app: "yt" },
+  { from: 128, hitY: -28, app: "ig" },
+  { from: -125, hitY: -12, app: "ig" },
+  { from: 104, hitY: 6, app: "yt" },
+  { from: 120, hitY: -18, app: "ig" },
+  { from: -110, hitY: -2, app: "yt" },
 ];
-const GLYPHS = [HgInstagram, HgYoutube, HgPlay, HgFilm];
+/** Where on the head a throw lands: the near side, at its hitY. */
+const HIT_X = 64;
 
 /**
- * Reels and shorts fly into the cat's head one after another, and each one
- * that lands pushes it a stage further down the wilt: two throws per stage,
- * the cat shudders on impact, and once it is gone everything rests a beat and
- * starts over. Two throws are in flight at once so the stream reads as a
- * feed, not a metronome.
+ * Instagram and YouTube get thrown at the cat one after another, and every
+ * second one that lands pushes it a stage further down the wilt. Each hit
+ * squashes the head and knocks it away from the throw, the logo bounces off
+ * with a little burst, and the cat bobs between hits. Once it is gone it sways
+ * a beat, then springs back fresh with a hop and the loop starts over. Two
+ * throws are in flight at once so the stream reads as a feed, not a metronome.
  */
 function WiltArt({ playing }: { playing: boolean }) {
   const [stage, setStage] = useState(0);
   const [round, setRound] = useState(0);
   const idx = useSharedValue(0);
-  const shake = useSharedValue(0);
+  // hit: signed knock (-1 left .. 1 right); squash: 1 at impact; hop: the revival
+  // jump; sway: the skull rocking; bob: the idle float; pop: the label bounce.
+  const hit = useSharedValue(0);
+  const squash = useSharedValue(0);
+  const hop = useSharedValue(0);
+  const sway = useSharedValue(0);
+  const bob = useSharedValue(0);
+  const pop = useSharedValue(0);
   const reduceMotion = useReducedMotion();
 
   useMountEffect(() => {
     // Off screen the cat just sits at its first stage; the parent remounts
     // this with `playing` once the pager lands here, and the loop begins then.
-    if (!playing) return;
+    if (!playing || reduceMotion) return;
+    bob.value = withRepeat(withTiming(1, { duration: 1300, easing: Easing.inOut(Easing.sin) }), -1, true);
     const timers: ReturnType<typeof setTimeout>[] = [];
     const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
+    const knock = (dir: number) => {
+      hit.value = withSequence(
+        withTiming(dir, { duration: 60, easing: Easing.out(Easing.quad) }),
+        withSpring(0, { damping: 7, stiffness: 260, mass: 0.6 })
+      );
+      squash.value = withSequence(withTiming(1, { duration: 70 }), withSpring(0, { damping: 5, stiffness: 320 }));
+    };
+    const bump = () => {
+      pop.value = withSequence(withTiming(1, { duration: 90 }), withSpring(0, { damping: 6, stiffness: 300 }));
+    };
     const run = () => {
       let tms = 700;
-      THROWS.forEach((_, i) => {
-        const land = tms + THROW_MS;
-        at(land, () => {
-          if (!reduceMotion) {
-            shake.value = withSequence(
-              withTiming(1, { duration: 40 }),
-              withTiming(-1, { duration: 70 }),
-              withTiming(0.5, { duration: 60 }),
-              withTiming(0, { duration: 80 })
-            );
-          }
+      THROWS.forEach((t, i) => {
+        at(tms + THROW_MS, () => {
+          // Knocked away from the side the throw came from.
+          knock(t.from < 0 ? 1 : -1);
           // Every second landing advances the wilt.
           if (i % 2 === 1) {
             const next = Math.min(WILT_STAGES.length - 1, (i + 1) / 2);
             setStage(next);
             idx.value = next;
+            bump();
+            if (next === WILT_STAGES.length - 1) {
+              sway.value = withDelay(
+                250,
+                withSequence(
+                  withTiming(1, { duration: 520, easing: Easing.inOut(Easing.sin) }),
+                  withTiming(-1, { duration: 1040, easing: Easing.inOut(Easing.sin) }),
+                  withTiming(0, { duration: 520, easing: Easing.inOut(Easing.sin) })
+                )
+              );
+            }
           }
         });
         tms += THROW_GAP;
       });
-      // Rest at Gone, then reset and go again: the round key remounts the
-      // throws, and `run` re-arms the landings for them.
-      at(tms + THROW_MS + 1900, () => {
+      // Rest at Gone, then spring back fresh and go again: the round key
+      // remounts the throws, and `run` re-arms the landings for them.
+      at(tms + THROW_MS + 2100, () => {
         // Head first, label once the skull has faded, so the two never disagree.
         idx.value = 0;
-        at(450, () => setStage(0));
+        hop.value = withSequence(
+          withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }),
+          withSpring(0, { damping: 6, stiffness: 240 })
+        );
+        at(450, () => {
+          setStage(0);
+          bump();
+        });
         setRound((r) => r + 1);
         at(60, run);
       });
@@ -539,8 +554,15 @@ function WiltArt({ playing }: { playing: boolean }) {
   // `round` restarts the throw sequence; the head is keyed on nothing, so it
   // fades between stages in place.
   const headStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shake.value * 5 }, { rotate: `${shake.value * 2}deg` }],
+    transform: [
+      { translateX: hit.value * 12 },
+      { translateY: -bob.value * 5 - hop.value * 30 + squash.value * 6 },
+      { rotate: `${hit.value * 8 + sway.value * 6}deg` },
+      { scaleX: 1 + squash.value * 0.09 - hop.value * 0.04 },
+      { scaleY: 1 - squash.value * 0.09 + hop.value * 0.06 },
+    ],
   }));
+  const labelStyle = useAnimatedStyle(() => ({ transform: [{ scale: 1 + pop.value * 0.16 }] }));
 
   const s = WILT_STAGES[stage];
   return (
@@ -552,51 +574,102 @@ function WiltArt({ playing }: { playing: boolean }) {
           ))}
         </Animated.View>
         {playing && !reduceMotion
-          ? THROWS.map((t, i) => <Thrown key={`${round}-${i}`} from={t.from} glyph={GLYPHS[t.glyph]} delay={700 + i * THROW_GAP} />)
+          ? THROWS.map((t, i) => (
+              <Thrown key={`${round}-${i}`} id={`${round}-${i}`} {...t} delay={700 + i * THROW_GAP} />
+            ))
           : null}
       </View>
-      <Text className="mt-2 text-[20px] font-semibold" style={{ color: s.color, letterSpacing: -0.3 }}>
-        {s.name}
-      </Text>
-      <Text className="mt-1" style={{ fontSize: 13, fontWeight: "700", letterSpacing: 1.2 }}>
-        <Text style={{ color: s.color, fontVariant: ["tabular-nums"] }}>{s.left} MIN</Text>
-        <Text className="text-dim"> LEFT</Text>
-      </Text>
+      <Animated.View className="items-center" style={labelStyle}>
+        <Text className="mt-2 text-[20px] font-semibold" style={{ color: s.color, letterSpacing: -0.3 }}>
+          {s.name}
+        </Text>
+        <Text className="mt-1" style={{ fontSize: 13, fontWeight: "700", letterSpacing: 1.2 }}>
+          <Text style={{ color: s.color, fontVariant: ["tabular-nums"] }}>{s.left} MIN</Text>
+          <Text className="text-dim"> LEFT</Text>
+        </Text>
+      </Animated.View>
     </View>
   );
 }
 
 /**
- * One icon thrown at the head: rises from below and to the side on an arc,
- * spins a little, and shrinks into the head as it lands. Mounted once per
- * throw and keyed by round, so each loop replays it from the start.
+ * One logo thrown at the head: it rises from below and to the side on an arc,
+ * spinning, hits the near side of the head, then bounces back off and drops
+ * away with a little burst where it struck. `p` runs 0..1 for the flight and
+ * 1..2 for the bounce. Mounted once per throw and keyed by round, so each loop
+ * replays it from the start.
  */
-function Thrown({ from, glyph, delay }: { from: number; glyph: typeof HgInstagram; delay: number }) {
+function Thrown({
+  id,
+  from,
+  hitY,
+  app,
+  delay,
+}: {
+  id: string;
+  from: number;
+  hitY: number;
+  app: "ig" | "yt";
+  delay: number;
+}) {
   const p = useSharedValue(0);
   useMountEffect(() => {
-    p.value = withDelay(delay, withTiming(1, { duration: THROW_MS, easing: Easing.in(Easing.quad) }));
+    p.value = withDelay(
+      delay,
+      withSequence(
+        withTiming(1, { duration: THROW_MS, easing: Easing.in(Easing.quad) }),
+        withTiming(2, { duration: RICOCHET_MS, easing: Easing.out(Easing.quad) })
+      )
+    );
   });
-  const style = useAnimatedStyle(() => {
+  const side = from < 0 ? -1 : 1;
+  const hx = side * HIT_X;
+  const logo = useAnimatedStyle(() => {
     const k = p.value;
-    // Start low and off to one side; arc up and in to the head's centre.
-    const x = from * (1 - k);
-    const y = 150 * (1 - k) - 90 * Math.sin(k * Math.PI);
-    const scale = k < 0.85 ? 1 : 1 - (k - 0.85) / 0.15;
+    if (k <= 1) {
+      // In: an arc from low at the side to the head's near edge, spinning.
+      return {
+        opacity: k === 0 ? 0 : 1,
+        transform: [
+          { translateX: from + (hx - from) * k },
+          { translateY: 150 + (hitY - 150) * k - 80 * Math.sin(k * Math.PI) },
+          { rotate: `${side * 300 * (1 - k)}deg` },
+          { scale: 1 },
+        ],
+      };
+    }
+    // Off: back out the way it came, up a little and then falling, fading.
+    const r = k - 1;
     return {
-      opacity: k === 0 ? 0 : k > 0.92 ? (1 - k) / 0.08 : 1,
-      transform: [{ translateX: x }, { translateY: y }, { rotate: `${(1 - k) * from * 0.6}deg` }, { scale }],
+      opacity: 1 - r,
+      transform: [
+        { translateX: hx + side * 70 * r },
+        { translateY: hitY - 36 * r + 170 * r * r },
+        { rotate: `${-side * 220 * r}deg` },
+        { scale: 1 - 0.25 * r },
+      ],
+    };
+  });
+  const burst = useAnimatedStyle(() => {
+    const r = Math.max(0, p.value - 1);
+    return {
+      opacity: p.value < 1 ? 0 : Math.max(0, 1 - r * 2.4),
+      transform: [{ translateX: hx * 0.82 }, { translateY: hitY }, { scale: 0.5 + r * 1.6 }],
     };
   });
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        { position: "absolute", width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(242,241,236,0.10)", borderWidth: 1, borderColor: "rgba(242,241,236,0.14)" },
-        style,
-      ]}
-    >
-      <HugeiconsIcon icon={glyph} size={22} color={C.bone} strokeWidth={1.8} />
-    </Animated.View>
+    <>
+      <Animated.View pointerEvents="none" style={[{ position: "absolute", width: 46, height: 46 }, burst]}>
+        <Svg width={46} height={46} viewBox="0 0 46 46">
+          {[0, 60, 120, 180, 240, 300].map((a) => (
+            <Rect key={a} x={21.5} y={2} width={3} height={10} rx={1.5} fill={C.bone} opacity={0.8} transform={`rotate(${a} 23 23)`} />
+          ))}
+        </Svg>
+      </Animated.View>
+      <Animated.View pointerEvents="none" style={[{ position: "absolute", width: 44, height: 44 }, logo]}>
+        {app === "ig" ? <InstagramMark size={44} id={id} /> : <YouTubeMark size={44} />}
+      </Animated.View>
+    </>
   );
 }
 
@@ -614,7 +687,7 @@ function WiltLayer({ i, idx, t }: { i: number; idx: SharedValue<number>; t: numb
 }
 
 /* ------------------------------------------------------------------ */
-/* Page 4: mode tiles                                                  */
+/* Page 2: mode tiles                                                  */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -746,7 +819,7 @@ function Fact({ text }: { text: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Page 5: the two switches                                            */
+/* Page 3: the two switches                                            */
 /* ------------------------------------------------------------------ */
 
 /** A toggle that reflects a permission and slides when it flips. */
@@ -833,7 +906,7 @@ function ReadyScreen({ onFinish }: { onFinish: () => void }) {
     transform: [{ translateY: (1 - enter.value) * 26 }],
   }));
   const eyeProps = useAnimatedProps(() => ({
-    matrix: translateXScaleY(-6 + dart.value * 12, 1 - blink.value, 128),
+    matrix: translateXScaleY(-6 + dart.value * 12, 1 - blink.value, EYE_Y),
   })) as never;
 
   return (
