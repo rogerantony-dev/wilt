@@ -14,14 +14,26 @@ import Svg, {
 } from "react-native-svg";
 
 import { CatHead } from "./CatHead";
-import { baseShapes, bodyPattern, FIGURE_BOX, itemShapes, PILL_BOX, TOP_PIVOT, topTilt, type Shape } from "./catshapes";
+import {
+  baseShapes,
+  bodyPattern,
+  FIGURE_BODY_TF,
+  FIGURE_BOX,
+  FIGURE_HEAD_TF,
+  itemShapes,
+  PILL_BOX,
+  TOP_PIVOT,
+  topTilt,
+  type Shape,
+} from "./catshapes";
 import type { Outfit } from "./closet";
 
 /**
  * The dressed cat: base, bottom, body, head, top, stacked in one SVG in the
  * figure box (or, with `headOnly`, the head and top in the pill box). The head
  * keeps its own 0..256 coordinates, so `eyes` and `children` (drawn over the
- * head, under the top item) work in head coordinates as they do with CatHead.
+ * head, under the top item) work in head coordinates as they do with CatHead;
+ * in the figure box the chibi transforms from catshapes.ts place the parts.
  * `clipId` must be unique per mounted instance; the SVG ids derive from it.
  * `viewBox` overrides the box, to crop the drawing (the closet's slot tiles).
  */
@@ -62,19 +74,21 @@ export function CatFigure({
         </Defs>
       ) : null}
       {headOnly ? null : (
-        <>
+        <G transform={FIGURE_BODY_TF}>
           <Shapes shapes={baseShapes(t)} />
           <Shapes shapes={itemShapes("bottom", outfit.bottom, t)} />
           <Shapes shapes={itemShapes("body", outfit.body, t, patternId)} />
-        </>
-      )}
-      <CatHead t={t} eyes={eyes} clipId={`${clipId}-head`} />
-      {children}
-      {top.length ? (
-        <G transform={`rotate(${topTilt(t)} ${TOP_PIVOT.x} ${TOP_PIVOT.y})`}>
-          <Shapes shapes={top} />
         </G>
-      ) : null}
+      )}
+      <G transform={headOnly ? undefined : FIGURE_HEAD_TF}>
+        <CatHead t={t} eyes={eyes} clipId={`${clipId}-head`} />
+        {children}
+        {top.length ? (
+          <G transform={`rotate(${topTilt(t)} ${TOP_PIVOT.x} ${TOP_PIVOT.y})`}>
+            <Shapes shapes={top} />
+          </G>
+        ) : null}
+      </G>
     </Svg>
   );
 }

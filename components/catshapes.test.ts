@@ -1,5 +1,9 @@
 import { catHead, mix } from "./catdecay";
-import { baseShapes, dullColor, FIGURE_BOX, furColor, itemShapes, topTilt } from "./catshapes";
+import { readFileSync } from "fs";
+import { join } from "path";
+
+import { EYE_X, EYE_Y } from "./catdecay";
+import { baseShapes, dullColor, FIGURE_BODY_TF, FIGURE_BOX, FIGURE_HEAD_TF, furColor, itemShapes, topTilt } from "./catshapes";
 import { ITEMS, SLOTS } from "./closet";
 
 describe("furColor", () => {
@@ -71,5 +75,20 @@ describe("baseShapes", () => {
   });
   it("sits in the figure box", () => {
     expect(FIGURE_BOX).toEqual({ x: 0, y: -40, w: 256, h: 440 });
+  });
+});
+
+describe("the chibi proportions", () => {
+  // cat-figure.js renders the service's PNG layers; the app must place the parts the same way.
+  const figureJs = readFileSync(join(__dirname, "../design-previews/cat-figure.js"), "utf8");
+  const rotCatJs = readFileSync(join(__dirname, "../design-previews/rot-cat.js"), "utf8");
+  it("matches cat-figure.js", () => {
+    expect(figureJs).toContain(`head: '${FIGURE_HEAD_TF}'`);
+    expect(figureJs).toContain(`body: '${FIGURE_BODY_TF}'`);
+  });
+  it("puts the eyes where rot-cat.js does", () => {
+    expect(rotCatJs).toContain(`const EYE_Y = ${EYE_Y}`);
+    expect(rotCatJs).toContain(`eye(${EYE_X[0]}, EYE_Y`);
+    expect(rotCatJs).toContain(`eye(${EYE_X[1]}, EYE_Y`);
   });
 });

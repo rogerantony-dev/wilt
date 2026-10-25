@@ -22,6 +22,11 @@ const RED: Rgb = [0xd2, 0x54, 0x2f];
 const WHISKER_SICK: Rgb = [0x8a, 0x92, 0x84];
 const MOLD = ["#8FB23C", "#B5C64A", "#6F9636", "#D0DC5A"];
 
+/** The eyes: centres at EYE_X on the line EYE_Y, radius EYE_R. The clock blinks them about EYE_Y. */
+export const EYE_X = [94, 162] as const;
+export const EYE_Y = 146;
+export const EYE_R = 23;
+
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 /** Smoothstep of x clamped to 0..1. */
@@ -128,12 +133,12 @@ export function catHead(tIn: number): CatHeadModel {
   const spotSpec: [number, number, number, number, number, number][] = [
     [84, 152, 16, 11, 0.42, 0],
     [176, 94, 13, 9, 0.48, 1],
-    [66, 110, 11, 8, 0.55, 2],
-    [152, 176, 19, 12, 0.6, 3],
-    [110, 196, 13, 8, 0.66, 0],
-    [190, 152, 11, 11, 0.72, 1],
+    [66, 116, 11, 8, 0.55, 2],
+    [158, 184, 19, 12, 0.6, 3],
+    [104, 198, 13, 8, 0.66, 0],
+    [196, 150, 11, 11, 0.72, 1],
     [102, 74, 14, 9, 0.78, 2],
-    [140, 120, 9, 7, 0.84, 3],
+    [140, 104, 9, 7, 0.84, 3],
   ];
   const spots: Spot[] = over
     ? []
@@ -144,10 +149,11 @@ export function catHead(tIn: number): CatHeadModel {
         })
         .filter((s) => s.opacity > 0);
 
-  const look = lerp(2, 0, cloud);
+  const look = lerp(1.5, 0, cloud);
   const eye = (cx: number, cy: number, x: boolean, cloudy: number): Eye => {
     if (x) return { kind: "x", cx, cy, stroke: over ? "#2A2A27" : hex(EYE) };
-    const pr = lerp(12, 5, bead);
+    const pr = lerp(16, 7, bead);
+    const shine = lerp(7, 2.6, bead);
     return {
       kind: "open",
       cx,
@@ -157,9 +163,9 @@ export function catHead(tIn: number): CatHeadModel {
       pupilOpacity: 1 - cloudy * 0.35,
       pupilR: pr,
       look,
-      shine: { r: lerp(4.5, 1.8, bead), opacity: 1 - cloudy },
-      shine2: { r: lerp(2.2, 0, bead), opacity: (1 - cloudy) * 0.9 },
-      lidHeight: 38 * lid,
+      shine: { r: shine, opacity: 1 - cloudy },
+      shine2: { r: shine * 0.45, opacity: (1 - cloudy) * 0.9 },
+      lidHeight: (EYE_R * 2 + 4) * lid,
       lidFill: fur,
     };
   };
@@ -180,11 +186,11 @@ export function catHead(tIn: number): CatHeadModel {
     spots,
     patchR: !over && skullK > 0 ? lerp(30, 150, skullK) : 0,
     patchOpacity: 0.6 + 0.4 * skullK,
-    eyes: [eye(102, 128, t >= 0.84, 0), eye(154, 128, over, cloud)],
+    eyes: [eye(EYE_X[0], EYE_Y, t >= 0.84, 0), eye(EYE_X[1], EYE_Y, over, cloud)],
     nose: { fill: over ? "#2A2A27" : mix(GREEN, RED, ramp(t, 0.3, 0.7)) },
     cuteMouthOpacity: over ? 0 : cute,
     arcMouth: {
-      dy: lerp(8, -20, mouthK),
+      dy: lerp(5.76, -14.4, mouthK),
       stroke: mix(GREEN, RED, ramp(t, 0.3, 0.8)),
       opacity: over ? 0 : 1 - cute,
     },

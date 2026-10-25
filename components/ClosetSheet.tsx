@@ -23,11 +23,17 @@ const TABS: { key: Slot; label: string }[] = [
   { key: "bottom", label: "Bottom" },
 ];
 
-/** Each slot's tile crops the figure to where that slot's item sits. */
+/**
+ * Each slot's tile crops the figure to where that slot's item sits (top in the
+ * pill box's head coordinates, the others in the figure box). Keep every crop
+ * at most 1.1 wide per 1 tall, a little narrower than the tile's drawing area:
+ * when the crop is the wider of the two, react-native-svg on Android centres it
+ * vertically wrong and the item drifts up out of the tile.
+ */
 const CROP: Record<Slot, string> = {
   top: "0 -36 256 260",
-  body: "40 176 176 180",
-  bottom: "50 280 156 110",
+  body: "53 234 150 136",
+  bottom: "63 288 130 118",
 };
 
 /**

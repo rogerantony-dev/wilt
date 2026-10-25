@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wilt: a cuter cat</title>
+<style>
+  :root { --ink:#0D0D0C; --panel:#1A1A18; --bone:#F2F1EC; --ash:#9A9A92; --dim:#62625B; --green:#38C786; --amber:#E0913C; --red:#D2542F;
+          --glass:rgba(242,241,236,.06); --hair:rgba(242,241,236,.10); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ink); color:var(--bone); font:14px/1.5 -apple-system,"SF Pro Text",Roboto,system-ui,sans-serif; padding:32px 28px 80px; }
+  h1 { font-size:22px; font-weight:600; letter-spacing:-.3px; margin:0 0 4px; }
+  .sub { color:var(--ash); margin:0 0 8px; max-width:760px; }
+  .row { margin-top:34px; }
+  .row h2 { font-size:12px; font-weight:600; letter-spacing:1.1px; text-transform:uppercase; color:var(--dim); margin:0 0 2px; }
+  .row h2 b { color:var(--bone); letter-spacing:.4px; }
+  .row p { color:var(--ash); margin:0 0 12px; max-width:760px; font-size:13px; }
+  .cells { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .cell span { font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:var(--dim); }
+  .disc { width:150px; height:150px; border-radius:50%; background:radial-gradient(circle at 50% 40%, var(--tint1,#2a7a55), var(--tint2,#123b29) 72%); box-shadow:0 0 0 7px rgba(56,199,134,.08), 0 0 0 2px var(--ring,#2f9e6c) inset;
+          display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+  .disc.amber { --tint1:#7a5a2a; --tint2:#3b2a12; --ring:#c98a3c; }
+  .disc.red { --tint1:#5a2418; --tint2:#2a110c; --ring:#b5482a; }
+  .disc.dark { --tint1:#2a2120; --tint2:#140f0e; --ring:#6e2c1f; }
+  .disc svg { width:76px; height:131px; margin-bottom:12px; }
+  .pill { display:flex; align-items:center; gap:8px; padding:6px 14px 6px 8px; border-radius:999px; background:#161615; border:1px solid var(--hair); font-weight:700; font-size:13px; white-space:nowrap; }
+  .pill svg { width:30px; height:30px; }
+  .big { width:150px; height:150px; border-radius:20px; background:var(--glass); border:1px solid var(--hair); display:flex; align-items:center; justify-content:center; }
+  .big svg { width:128px; height:128px; }
+  .hero { width:250px; height:250px; border-radius:50%; background:radial-gradient(circle at 50% 40%, #2a7a55, #123b29 72%); box-shadow:0 0 0 10px rgba(56,199,134,.08), 0 0 0 2px #2f9e6c inset; display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+  .hero svg { width:128px; height:220px; margin-bottom:16px; }
+  .bigface { width:250px; height:250px; border-radius:24px; background:var(--glass); border:1px solid var(--hair); display:flex; align-items:center; justify-content:center; }
+  .bigface svg { width:220px; height:220px; }
+  .pick { display:inline-block; margin-top:4px; font-size:12px; color:var(--green); font-weight:600; }
+</style>
+</head>
+<body>
+<h1>A cuter cat</h1>
+<p class="sub">The same cat, three ways cuter, each shown fresh, dressed, wilting and gone, at home size and at pill size. The wilt still has to read, so every version decays the same way the current one does.</p>
+<div id="rows"></div>
+
+<script src="rot-cat.js"></script>
+<script src="cat-figure.js"></script>
+<script>
+// A copy of cat() from rot-cat.js with the face laid out by a parameter set P,
+// so a variant can move and resize features without touching the decay logic.
+function catV(t, id, P) {
+  const over = t >= 1;
+  const sick = ramp(t, 0.2, 0.7);
+  const droop = ramp(t, 0.25, 0.85) * 42;
+  const lid = ramp(t, 0.25, 0.75) * 0.55;
+  const cloud = ramp(t, 0.5, 0.65);
+  const mouthK = clamp(t / 0.9, 0, 1);
+  const skullK = ramp(t, 0.72, 1.0);
+  const rotK = ramp(t, 0.65, 1);
+  const fur = over ? hex(BONE) : hex([0, 1, 2].map(i => lerp(lerp(FUR_FRESH[i], FUR_SICK[i], sick), FUR_ROT[i], rotK)));
+  const face = over ? hex(BONE) : fur;
+  const xLeft = t >= 0.84, xRight = over;
+  const H = P.head;
+  const headShape = (attrs) => `<ellipse cx="${H.cx}" cy="${H.cy}" rx="${H.rx}" ry="${H.ry}" ${attrs}/>`;
+
+  const spots = [
+    [84, 152, 16, 11, 0.42, 0], [176, 94, 13, 9, 0.48, 1], [66, 116, 11, 8, 0.55, 2],
+    [158, 184, 19, 12, 0.6, 3], [104, 198, 13, 8, 0.66, 0], [196, 150, 11, 11, 0.72, 1],
+    [102, 74, 14, 9, 0.78, 2], [140, 104, 9, 7, 0.84, 3],
+  ];
+  const spotSvg = over ? '' : spots.map(([x, y, rx, ry, s, c]) => {
+    const o = ramp(t, s, s + 0.08);
+    if (o <= 0) return '';
+    return `<ellipse cx="${x}" cy="${y}" rx="${rx * (0.7 + 0.3 * o)}" ry="${ry * (0.7 + 0.3 * o)}" fill="${MOLD[c]}" opacity="${0.85 * o}"/>`;
+  }).join('');
+
+  const E = P.eye;
+  const bead = ramp(t, 0.2, 0.75);
+  const eye = (cx, cy, x, cloudy, look) => {
+    if (x) {
+      const c = over ? '#2A2A27' : hex(EYE), a = E.r * 0.66;
+      return `<g stroke="${c}" stroke-width="7" stroke-linecap="round">
+        <line x1="${cx - a}" y1="${cy - a}" x2="${cx + a}" y2="${cy + a}"/><line x1="${cx + a}" y1="${cy - a}" x2="${cx - a}" y2="${cy + a}"/></g>`;
+    }
+    const pupil = cloudy > 0.5 ? '#7A8B8F' : '#151513';
+    const iris = mix(EYE, [0xB9, 0xC4, 0xB8], cloudy);
+    const pr = lerp(E.pupil[0], E.pupil[1], bead);
+    const ry = E.r * (E.tall || 1);
+    // A dark eye with a white rim reads as a sticker; a full dark eye with two
+    // big shines reads as a plush toy. P.eye.style picks.
+    const body = E.style === 'plush'
+      ? `<ellipse cx="${cx}" cy="${cy}" rx="${E.r}" ry="${ry}" fill="${cloudy > 0.5 ? '#7A8B8F' : '#151513'}"/>`
+      : `<ellipse cx="${cx}" cy="${cy}" rx="${E.r}" ry="${ry}" fill="${iris}"/><circle cx="${cx + look}" cy="${cy + 1}" r="${pr}" fill="${pupil}" opacity="${1 - cloudy * 0.35}"/>`;
+    const s1 = lerp(E.shine[0], E.shine[1], bead);
+    const sx = E.style === 'plush' ? E.r * 0.32 : pr * 0.35, sy = E.style === 'plush' ? ry * 0.36 : pr * 0.4;
+    return `<g>${body}
+      <circle cx="${cx + look - sx}" cy="${cy - sy}" r="${s1}" fill="#fff" opacity="${1 - cloudy}"/>
+      <circle cx="${cx + look + sx * 1.1}" cy="${cy + sy * 0.9}" r="${s1 * 0.45}" fill="#fff" opacity="${(1 - cloudy) * 0.9}"/>
+      <rect x="${cx - E.r - 2}" y="${cy - ry - 2}" width="${E.r * 2 + 4}" height="${(ry * 2 + 4) * lid}" fill="${face}"/>
+    </g>`;
+  };
+
+  const M = P.mouth;
+  const gape = ramp(t, 0.8, 0.98);
+  let mouth = '';
+  if (over) {
+    mouth = `<path d="M${128 - 30} ${M.y} h60" stroke="#2A2A27" stroke-width="5" stroke-linecap="round"/>
+      <g fill="#2A2A27">${[-22, -8, 6, 20].map((dx, i) => `<rect x="${128 + dx - 3}" y="${M.y - 4}" width="7" height="${i % 3 ? 14 : 12}" rx="1"/>`).join('')}</g>`;
+  } else {
+    const dy = lerp(8, -20, mouthK) * M.s;
+    const stroke = mix([0x38, 0xC7, 0x86], [0xD2, 0x54, 0x2F], ramp(t, 0.3, 0.8));
+    const cute = 1 - ramp(t, 0.22, 0.4);
+    const w = 9 * M.s;
+    if (cute > 0) mouth = `<path d="M${128 - 2 * w} ${M.y - 6} q${w} ${12 * M.s} ${2 * w} 0 q${w} ${12 * M.s} ${2 * w} 0" fill="none" stroke="#38C786" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="${cute}"/>`;
+    mouth += `<path d="M${128 - 24 * M.s} ${M.y + 2 - dy * 0.35} q${24 * M.s} ${dy} ${48 * M.s} 0" fill="none" stroke="${stroke}" stroke-width="5.5" stroke-linecap="round" opacity="${1 - cute}"/>`;
+    if (gape > 0) mouth += `<ellipse cx="128" cy="${M.y + 6 + gape * 3}" rx="${9 * gape}" ry="${7 * gape}" fill="#5A1F16"/><ellipse cx="128" cy="${M.y + 9 + gape * 4}" rx="${5 * gape}" ry="${4 * gape}" fill="#C44A3F"/>`;
+  }
+  const ny = P.noseY;
+  const nose = over
+    ? `<path d="M121 ${ny - 2} l7 10 l7 -10 z" fill="#2A2A27"/>`
+    : `<path d="M122 ${ny} h12 a2 2 0 0 1 1.5 3 l-5.8 6.6 a2.2 2.2 0 0 1 -3.4 0 l-5.8 -6.6 a2 2 0 0 1 1.5 -3z" fill="${mix([0x38, 0xC7, 0x86], [0xD2, 0x54, 0x2F], ramp(t, 0.3, 0.7))}"/>`;
+
+  let patch = '';
+  if (!over && skullK > 0) {
+    const r = lerp(30, 150, skullK);
+    patch = `<clipPath id="hv${id}">${headShape('')}</clipPath>
+      <g clip-path="url(#hv${id})">
+        <path d="M ${168 - r * 0.2} ${74 - r * 0.1} l ${r * 0.35} ${-r * 0.1} l ${r * 0.2} ${r * 0.3} l ${-r * 0.1} ${r * 0.35} l ${-r * 0.4} ${r * 0.1} l ${-r * 0.25} ${-r * 0.35} z" fill="${hex(BONE)}" opacity="${0.6 + 0.4 * skullK}"/>
+        <path d="M ${172 - r * 0.15} ${86 - r * 0.05} l ${r * 0.12} ${r * 0.18} l ${r * 0.1} ${-r * 0.05}" stroke="#8A8574" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      </g>`;
+  }
+  const cracks = over ? `<g stroke="#8A8574" stroke-width="3" fill="none" stroke-linecap="round"><path d="M150 62 l10 18 l-8 10 l9 12"/><path d="M92 92 l-8 14 l6 8"/><path d="M128 48 l4 12 l-6 8"/></g>` : '';
+
+  const pinkO = 0.9 * (1 - ramp(t, 0.15, 0.5));
+  const A = P.ear;
+  const earL = `<g transform="rotate(${-droop} ${A.pivotL})"><path d="${A.l}" fill="${fur}"/>${over ? '' : `<path d="${A.lp}" fill="#E08A97" opacity="${pinkO}"/>`}</g>`;
+  const notch = t >= 0.7 ? `<path d="M178 40 l12 -6 l-4 12 z" fill="#0D0D0C"/>` : '';
+  const earR = `<g transform="rotate(${droop} ${A.pivotR})"><path d="${A.r}" fill="${fur}"/>${over ? '' : `<path d="${A.rp}" fill="#E08A97" opacity="${pinkO}"/>`}${notch}</g>`;
+
+  const B = P.blush;
+  const blushO = 1 - ramp(t, 0.15, 0.45);
+  const blush = over ? '' : `<ellipse cx="${128 - B.dx}" cy="${B.y}" rx="${B.rx}" ry="${B.ry}" fill="#E08A97" opacity="${B.o * blushO}"/><ellipse cx="${128 + B.dx}" cy="${B.y}" rx="${B.rx}" ry="${B.ry}" fill="#E08A97" opacity="${B.o * blushO}"/>`;
+  const W = P.whisk;
+  const wd = ramp(t, 0.3, 0.9) * 10;
+  const wo = lerp(0.85, 0.35, ramp(t, 0.3, 0.9));
+  const wl = (side) => W.ys.map((y, i) => {
+    const x0 = 128 + side * W.x0, x1 = 128 + side * (W.x0 + W.len), dy = (i - (W.ys.length - 1) / 2) * 7;
+    return `<line x1="${x0}" y1="${y}" x2="${x1}" y2="${y + dy}"/>`;
+  }).join('');
+  const whiskers = over ? '' : `<g stroke="${mix(EYE, [0x8A, 0x92, 0x84], sick)}" stroke-width="2.4" stroke-linecap="round" opacity="${wo}">
+      <g transform="rotate(${wd} ${128 - W.x0} ${W.ys[0]})">${wl(-1)}</g><g transform="rotate(${-wd} ${128 + W.x0} ${W.ys[0]})">${wl(1)}</g></g>`;
+  // A lighter muzzle under the nose, the plush-toy tell. Fades with the fur.
+  const muzzle = P.muzzle && !over ? `<ellipse cx="128" cy="${P.muzzle.y}" rx="${P.muzzle.rx}" ry="${P.muzzle.ry}" fill="#F2F1EC" opacity="${0.08 * (1 - rotK)}"/>` : '';
+  const tear = (!over && t >= 0.8) ? `<path d="M${128 + P.eye.dx + 22} ${P.eye.y - 30} q0 -14 6 -22 q6 8 6 22 a6 6 0 0 1 -12 0z" fill="#6FB3E6" opacity="${ramp(t, 0.8, 0.9)}"/>` : '';
+
+  return `<svg x="0" y="0" width="256" height="256" viewBox="0 0 256 256" overflow="visible">
+    ${earL}${earR}
+    ${headShape(`fill="${fur}"`)}
+    ${patch}${cracks}${spotSvg}${muzzle}
+    <g>${eye(128 - E.dx, E.y, xLeft, 0, lerp(1.5, 0, cloud))}${eye(128 + E.dx, E.y, xRight, cloud, lerp(1.5, 0, cloud))}</g>
+    ${blush}${whiskers}${nose}${mouth}${tear}
+  </svg>`;
+}
+
+const ROUND_EAR = {
+  // Shorter, rounder ears set a touch wider, with a soft tip instead of a point.
+  l: 'M70 96 C58 70 56 46 62 34 C66 28 72 28 78 32 C94 42 108 54 118 68 Z',
+  lp: 'M76 84 C68 66 67 50 70 42 C82 50 94 60 102 70 Z',
+  r: 'M186 96 C198 70 200 46 194 34 C190 28 184 28 178 32 C162 42 148 54 138 68 Z',
+  rp: 'M180 84 C188 66 189 50 186 42 C174 50 162 60 154 70 Z',
+  pivotL: '78 88', pivotR: '178 88',
+};
+
+// A's face: bigger, lower, wider eyes; features tucked in; rounder ears.
+const FACE_A = {
+  head: { cx: 128, cy: 134, rx: 88, ry: 76 },
+  eye: { dx: 34, y: 146, r: 23, pupil: [16, 7], shine: [7, 2.6] },
+  noseY: 164, mouth: { y: 175, s: 0.72 },
+  blush: { dx: 58, y: 168, rx: 15, ry: 9, o: 0.75 },
+  whisk: { x0: 54, len: 30, ys: [162, 170] },
+  ear: ROUND_EAR,
+};
+// C's face: A with plush-toy eyes (all dark, two big shines) and a muzzle.
+const FACE_C = { ...FACE_A, eye: { dx: 34, y: 146, r: 20, tall: 1.14, pupil: [20, 20], shine: [9, 3.6], style: 'plush' }, muzzle: { y: 172, rx: 24, ry: 14 } };
+// Head up by an eighth, body squashed to four fifths about the neck.
+const CHIBI = { headTf: 'translate(128 176) scale(1.24) translate(-128 -176)', bodyTf: 'translate(128 206) scale(1.1 0.7) translate(-128 -206)' };
+
+const VARIANTS = [
+  { key: 'now', name: 'Now', note: 'The cat as it ships.' },
+  { key: 'eyes', name: 'A. Big eyes', P: FACE_A,
+    note: 'Face only. Eyes bigger, set lower and wider, with two shines; the nose and mouth tuck in under them; rounder ears; bigger blush; two short whiskers a side. The body and every piece of clothing stay exactly as they are.' },
+  { key: 'chibi', name: 'B. Chibi', P: FACE_A, ...CHIBI,
+    note: 'A, plus a bigger head on a shorter, rounder body. Clothes follow the same squash, so they still fit.' },
+  { key: 'plush', name: 'C. Plush', P: FACE_C, ...CHIBI, plushBody: true,
+    note: 'B, with plush-toy eyes (all dark, two big shines), a soft lighter muzzle, a cream belly and pink toe beans. The most toy-like; the decay still runs on top.' },
+];
+
+// The bare body, as baseSvg draws it, plus a belly patch and toe beans for C.
+function plushExtras(t) {
+  if (t >= 1) return '';
+  const k = 1 - ramp(t, 0.4, 0.9);
+  return `<ellipse cx="128" cy="276" rx="28" ry="36" fill="#F2F1EC" opacity="${0.12 * k}"/>
+    ${[106, 150].map(x => `<g fill="#E08A97" opacity="${0.85 * k}"><ellipse cx="${x}" cy="373" rx="6" ry="4"/><circle cx="${x - 9}" cy="365" r="2.6"/><circle cx="${x}" cy="362" r="2.6"/><circle cx="${x + 9}" cy="365" r="2.6"/></g>`).join('')}`;
+}
+
+let uid = 0;
+function figureV(t, outfit, V, box = 'figure') {
+  const b = BOXES[box], id = 'v' + (++uid);
+  const parts = b.layers.map((l) => {
+    let inner;
+    if (l === 'head') inner = V.P ? catV(t, id, V.P) : headSvg(t, id);
+    else if (l === 'base') inner = baseSvg(t) + (V.plushBody ? plushExtras(t) : '');
+    else inner = layerInner(l, t, outfit[l] || 'none', id);
+    if (box === 'pill') return inner;
+    const tf = l === 'head' || l === 'top' ? V.headTf : V.bodyTf;
+    return tf ? `<g transform="${tf}">${inner}</g>` : inner;
+  });
+  return wrap(b.view, parts.join(''));
+}
+
+const BARE = { top: 'none', body: 'none', bottom: 'none' };
+const DRESSED = { top: 'crown', body: 'hoodie', bottom: 'jeans' };
+const CELLS = [
+  { label: 'Fresh', t: 0.05, outfit: BARE, disc: '' },
+  { label: 'Dressed', t: 0.05, outfit: DRESSED, disc: '' },
+  { label: 'Wilting', t: 0.5, outfit: DRESSED, disc: 'amber' },
+  { label: 'Mouldy', t: 0.87, outfit: DRESSED, disc: 'red' },
+  { label: 'Gone', t: 1.0, outfit: DRESSED, disc: 'dark' },
+];
+
+const rows = document.getElementById('rows');
+for (const V of VARIANTS) {
+  const cells = CELLS.map(c => `<div class="cell"><div class="disc ${c.disc}">${figureV(c.t, c.outfit, V)}</div><span>${c.label}</span></div>`).join('');
+  const face = `<div class="cell"><div class="bigface">${figureV(0.05, BARE, V, 'pill')}</div><span>Face, close</span></div>`;
+  const hero = `<div class="cell"><div class="hero">${figureV(0.05, DRESSED, V)}</div><span>Home size</span></div>`;
+  const pills = `<div class="cell" style="gap:10px">
+      <div class="pill">${figureV(0.05, DRESSED, V, 'pill')}4 min scrolling</div>
+      <div class="pill">${figureV(0.72, DRESSED, V, 'pill')}22 min scrolling</div>
+      <div class="pill">${figureV(1.0, DRESSED, V, 'pill')}3 min over</div>
+      <span>Pill</span></div>`;
+  rows.insertAdjacentHTML('beforeend', `<section class="row"><h2><b>${V.name}</b></h2><p>${V.note}</p><div class="cells">${hero}${face}</div><div class="cells" style="margin-top:14px">${cells}${pills}</div></section>`);
+}
+</script>
+</body>
+</html>

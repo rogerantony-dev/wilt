@@ -18,6 +18,16 @@ export type Shape = {
 };
 
 export const FIGURE_BOX = { x: 0, y: -40, w: 256, h: 440 };
+/**
+ * Chibi proportions, as in cat-figure.js: in the figure box the head and its
+ * headwear are scaled up by 1.24, and the body layers squashed to 1.1 x 0.7
+ * about the neck, then everything moves down 48 so the cat fills the box as it
+ * did before. Each part keeps its own coordinates; these place it. The pill box
+ * draws the head at its own size.
+ * head: scale 1.24 about (128, 176), then down 48; body: scale 1.1 x 0.7 about (128, 206), then down 48.
+ */
+export const FIGURE_HEAD_TF = "matrix(1.24 0 0 1.24 -30.72 5.76)";
+export const FIGURE_BODY_TF = "matrix(1.1 0 0 0.7 -12.8 109.8)";
 /** The head plus headwear, for the pill. */
 export const PILL_BOX = { x: -8, y: -40, w: 272, h: 272 };
 
