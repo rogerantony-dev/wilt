@@ -5,7 +5,6 @@
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react-native";
 import HgStopWatch from "@hugeicons/core-free-icons/StopWatchIcon";
 import HgShield from "@hugeicons/core-free-icons/Shield01Icon";
-import HgPaw from "@hugeicons/core-free-icons/PawPrintIcon";
 import HgChart from "@hugeicons/core-free-icons/ChartColumnIcon";
 import HgArrowDown from "@hugeicons/core-free-icons/ArrowDown01Icon";
 import HgArrowRight from "@hugeicons/core-free-icons/ArrowRight01Icon";
@@ -35,7 +34,6 @@ function make(glyph: IconSvgElement, defaultSize = 18) {
 
 export const StopwatchIcon = make(HgStopWatch);
 export const ShieldIcon = make(HgShield);
-export const PawIcon = make(HgPaw);
 export const ChartIcon = make(HgChart);
 export const ChevronDownIcon = make(HgArrowDown, 14);
 export const ChevronRightIcon = make(HgArrowRight, 14);

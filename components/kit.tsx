@@ -70,17 +70,20 @@ export function AccentButton({ className = "", disabled, haptic = "confirm", ...
   );
 }
 
-export function GlassButton({ className = "", style, ...rest }: ButtonProps) {
+export function GlassButton({ className = "", style, disabled, ...rest }: ButtonProps) {
   return (
-    <Button
-      variant="secondary"
-      size="xl"
-      fullWidth
-      className={`rounded-2xl ${className}`}
-      style={[GLASS, style]}
-      labelClassName={LABEL}
-      {...rest}
-    />
+    <Dim disabled={disabled}>
+      <Button
+        variant="secondary"
+        size="xl"
+        fullWidth
+        className={`rounded-2xl ${className}`}
+        style={[GLASS, style]}
+        labelClassName={LABEL}
+        disabled={disabled}
+        {...rest}
+      />
+    </Dim>
   );
 }
 

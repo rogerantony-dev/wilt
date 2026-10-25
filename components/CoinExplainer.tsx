@@ -14,6 +14,7 @@ import { C } from "./console";
 import { GoldCoin } from "./GoldCoin";
 import { Text } from "./ui/text";
 import { feel } from "../lib/haptics";
+import { useMountEffect } from "./useMountEffect";
 
 /** Where the tile's coin sits, in page coordinates (`measure`'s pageX and pageY). */
 export type CoinOrigin = { x: number; y: number; size: number };
@@ -91,17 +92,24 @@ function Flight({
     closing.current = true;
     text.value = withTiming(0, TEXT_OUT);
     veil.value = withTiming(0, CLOSE);
-    p.value = withTiming(0, CLOSE, (done) => {
-      if (done) runOnJS(landed)();
+    // Land even if the flight home was cut short, or the full-screen Modal
+    // would stay up with nothing left to close it.
+    p.value = withTiming(0, CLOSE, () => {
+      runOnJS(landed)();
     });
   };
   closeRef.current = goHome;
+  useMountEffect(() => () => {
+    closeRef.current = null;
+  });
 
   // The flight starts once this full-screen layer knows its size. Android can
   // lay the window out twice (first inside the system bars, then edge to
   // edge), so the target follows every layout while the flight itself starts
   // only once.
   const onLayout = (e: LayoutChangeEvent) => {
+    // A close that began before the first layout must not be undone by the open.
+    if (closing.current) return;
     const { width, height } = e.nativeEvent.layout;
     setScreen({ w: width, h: height });
     tx.value = width / 2;
@@ -133,7 +141,8 @@ function Flight({
       onLayout={onLayout}
       onPress={goHome}
       accessibilityRole="button"
-      accessibilityLabel="Close"
+      accessibilityLabel="Scroll less, earn up to 50 a day. Spend them on clothes in the Closet."
+      accessibilityHint="Tap to close"
     >
       <Animated.View style={[StyleSheet.absoluteFill, veilStyle]} pointerEvents="none">
         <BlurView
