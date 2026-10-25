@@ -6,7 +6,7 @@
 <script src="cat-figure.js"></script>
 <script>
 // ?layer=base|head|top|body|bottom&item=<id>&stage=1..6&box=figure|pill renders one layer of the
-// dressed cat for res/drawable (see scripts/render-cat-layers.sh). Screenshot with
+// dressed cat for res/drawable-nodpi (see scripts/render-cat-layers.sh). Screenshot with
 // --default-background-color=00000000 at 360x619 (figure) or 192x192 (pill) for transparency.
 const q = new URLSearchParams(location.search);
 const box = q.get('box') === 'pill' ? 'pill' : 'figure';

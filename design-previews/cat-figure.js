@@ -1,6 +1,6 @@
 // The dressed cat: body and wearable items around the head from rot-cat.js (load that first).
 // Shared by cat-closet.html (the mockup) and cat-layer.html (single-layer PNG renderer for
-// res/drawable, see scripts/render-cat-layers.sh).
+// res/drawable-nodpi, see scripts/render-cat-layers.sh).
 //
 // Five layers, stacked in this order everywhere the cat is drawn:
 //   base   tail, legs, feet, torso, mould spots, ribs, arms, paws

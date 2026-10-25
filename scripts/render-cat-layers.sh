@@ -2,12 +2,12 @@
 # Renders the dressed cat's PNG layers for the accessibility service from
 # design-previews/cat-layer.html (drawing in design-previews/cat-figure.js).
 # Run from anywhere: bash scripts/render-cat-layers.sh
-# Writes plugin/native/res/drawable/wilt_fig_*.png (360x619) and wilt_pill_*.png (192x192).
+# Writes plugin/native/res/drawable-nodpi/wilt_fig_*.png (360x619) and wilt_pill_*.png (192x192).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PAGE="file://$ROOT/design-previews/cat-layer.html"
-OUT="$ROOT/plugin/native/res/drawable"
+OUT="$ROOT/plugin/native/res/drawable-nodpi"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 JOBS="${JOBS:-6}"
 

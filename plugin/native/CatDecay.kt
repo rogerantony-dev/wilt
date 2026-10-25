@@ -6,7 +6,7 @@ import android.graphics.Color
  * The cat that rots. One drawing of the mascot, decaying with the minutes
  * spent against the daily limit: fresh, wilting, mouldy, rotting, nearly gone,
  * and a skull once the limit is blown. Six stages; CatFigureLayers draws each
- * one from the stage-numbered layers in res/drawable.
+ * one from the stage-numbered layers in res/drawable-nodpi.
  *
  * The pill, the block cover, the nudge and the home-screen widget all read the
  * stage from here so they can never disagree about how far the cat has gone.
