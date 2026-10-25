@@ -6,7 +6,6 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -26,18 +25,17 @@ import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import expo.modules.wiltnative.Closet
 import expo.modules.wiltnative.Surfaces
 import org.json.JSONObject
 
@@ -79,7 +77,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
-    private var catView: ImageView? = null
+    private var catView: FrameLayout? = null
     private var pillLabel: TextView? = null
     private var overlayShown = false
 
@@ -95,7 +93,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private val nudgeHardKeys = setOf("latenight", "morning", "workhours")
 
     // Block mode: when you're on the Instagram home feed, this cover blanks the whole
-    // feed behind a cat photo + a cheeky line and EATS touches over it, so the feed
+    // feed behind the dressed cat + a cheeky line and EATS touches over it, so the feed
     // can't be scrolled at all. The bottom nav is left uncovered so you can still
     // leave. Distinct from the pill so the two never fight.
     //
@@ -109,11 +107,11 @@ class ReelAccessibilityService : AccessibilityService() {
     // transparent one. removeCatCover() is therefore called on every leave-app /
     // screen-off / block-mode-off path, and the layers rebuild lazily on next show.
     private val catLayers = mutableListOf<View>()
-    private var catImageView: ImageView? = null
+    private var catFigureView: FrameLayout? = null
     private var catTextView: TextView? = null
     private var catCoverVisible = false
     private val catCoverShown get() = catCoverVisible
-    private var blockShowSeq = 0 // rotates the cat/line each time the block re-appears
+    private var blockShowSeq = 0 // rotates the line each time the block re-appears
     private var lastCoverBounds: Rect? = null
     private val catCoverLayerCount = 3
 
@@ -156,8 +154,8 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
     private val coverLines = listOf(
-        "Feed's closed.\nHere's a cat.",
-        "No scrolling today.\nCat instead.",
+        "Feed's closed.\nYour cat took the hit.",
+        "No scrolling today.\nSay hi to your cat.",
         "Nope.\nGo do something else.",
         "This is better for you,\npromise."
     )
@@ -1565,7 +1563,9 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        catView?.setImageResource(catFaceRes())
+        // Prefs are read on every render, so wearing something in the Closet
+        // while Instagram is open shows on the next tick.
+        catView?.let { CatFigureLayers.bindPill(it, catStage(), Closet.outfit(prefs)["top"]) }
         pillLabel?.setTextColor(CatDecay.textColor(currentSeconds() / 60, limitMinutes()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
@@ -1575,7 +1575,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        catView?.setImageResource(CatDecay.drawableForStage(6)) // gone
+        catView?.let { CatFigureLayers.bindPill(it, 6, Closet.outfit(prefs)["top"]) } // gone
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
         if (bounceFeltPending) {
@@ -1600,14 +1600,11 @@ class ReelAccessibilityService : AccessibilityService() {
         view.performHapticFeedback(constant)
     }
 
-    /** Cat face for the pill/widget by how close today's time is to the limit. */
-    private fun catFaceRes(): Int = CatDecay.drawable(currentSeconds() / 60, limitMinutes())
+    /** How far the cat has wilted, by how close today's time is to the limit. */
+    private fun catStage(): Int = CatDecay.stage(currentSeconds() / 60, limitMinutes())
 
     private fun buildPill() {
-        val cat = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setImageResource(catFaceRes())
-        }
+        val cat = CatFigureLayers.pillHead(this)
         val label = TextView(this).apply {
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 15f)
@@ -1668,9 +1665,10 @@ class ReelAccessibilityService : AccessibilityService() {
 
     /**
      * Show the full-feed block at [bounds] (the feed area, above the bottom nav). The
-     * cat (one of the unlocked ones) + line rotate each time the block re-appears, then
-     * stay put while it's up. We only push a layout when first revealing or when the
-     * bounds actually change, so a steady block doesn't churn updateViewLayout every tick.
+     * line rotates each time the block re-appears and the cat is dressed and wilted to
+     * match today, then both stay put while it's up. We only push a layout when first
+     * revealing or when the bounds actually change, so a steady block doesn't churn
+     * updateViewLayout every tick.
      */
     private fun showBlockCover(bounds: Rect) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -1681,10 +1679,9 @@ class ReelAccessibilityService : AccessibilityService() {
 
         val fresh = !catCoverVisible
         if (fresh) {
-            // A random photo from the cats you have unlocked, and the next line.
+            // The cat as it is right now, in what it wears, and the next line.
             val idx = blockShowSeq++
-            val resId = randomUnlockedCatRes()
-            if (resId != 0) catImageView?.setImageResource(resId)
+            catFigureView?.let { CatFigureLayers.bind(it, catStage(), Closet.outfit(prefs)) }
             catTextView?.text = coverLines[idx % coverLines.size]
         }
         if (fresh || bounds != lastCoverBounds) {
@@ -1712,15 +1709,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 setOnClickListener { /* eat */ }
             }
             if (i == catCoverLayerCount - 1) {
-                val img = ImageView(this).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    clipToOutline = true
-                    outlineProvider = object : ViewOutlineProvider() {
-                        override fun getOutline(view: View, outline: Outline) {
-                            outline.setRoundRect(0, 0, view.width, view.height, dp(22).toFloat())
-                        }
-                    }
-                }
+                val img = CatFigureLayers.figure(this)
                 val label = TextView(this).apply {
                     setTextColor(Color.WHITE)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
@@ -1732,7 +1721,7 @@ class ReelAccessibilityService : AccessibilityService() {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(dp(24), dp(24), dp(24), dp(24))
-                    addView(img, LinearLayout.LayoutParams(dp(190), dp(190)))
+                    addView(img, LinearLayout.LayoutParams(dp(110), dp(180)))
                     addView(
                         label,
                         LinearLayout.LayoutParams(
@@ -1749,7 +1738,7 @@ class ReelAccessibilityService : AccessibilityService() {
                         Gravity.CENTER
                     )
                 )
-                catImageView = img
+                catFigureView = img
                 catTextView = label
             }
 
@@ -1803,7 +1792,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun removeCatCover() {
         for (layer in catLayers) runCatching { windowManager?.removeView(layer) }
         catLayers.clear()
-        catImageView = null
+        catFigureView = null
         catTextView = null
         catCoverVisible = false
         lastCoverBounds = null
@@ -1824,19 +1813,12 @@ class ReelAccessibilityService : AccessibilityService() {
         val hard = key in nudgeHardKeys || key.startsWith("time")
 
         val sheet = sheetBody()
-        // A cat photo from the ones the user has unlocked, where the app's
-        // sheets put their icon.
-        sheet.addView(ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            clipToOutline = true
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
-                }
-            }
-            val resId = randomUnlockedCatRes()
-            if (resId != 0) setImageResource(resId)
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(140)))
+        // The dressed cat, wilted to match today, where the app's sheets put
+        // their icon.
+        sheet.addView(
+            CatFigureLayers.figure(this).also { CatFigureLayers.bind(it, catStage(), Closet.outfit(prefs)) },
+            LinearLayout.LayoutParams(dp(86), dp(140))
+        )
         if (tag != null) sheet.addView(sheetKicker(tag.removePrefix("// "), WASTE), gapTop(16))
         sheet.addView(sheetHeadline(headline), gapTop(if (tag != null) 8 else 16))
         sheet.addView(sheetText(body), gapTop(8))
@@ -2274,26 +2256,6 @@ class ReelAccessibilityService : AccessibilityService() {
         }
         return if (node.isScrollable) node else null
     }
-
-    private val catCount = 13
-
-    /** Resolve a bundled cat photo (`wilt_cat_1..N`) by index, 0 if missing. */
-    private fun catDrawableRes(index: Int): Int =
-        resources.getIdentifier("wilt_cat_$index", "drawable", packageName)
-
-    /**
-     * How many cats the user has actually earned. The gallery gates each cat behind
-     * a lifetime-points threshold, so the block cover and the nudge must only draw
-     * from that prefix: showing a locked cat gives away a reward not yet earned.
-     * JS owns the number and mirrors it into prefs (see setUnlockedCats); 1 is the
-     * floor because the first cat is free, so there is always something to show.
-     */
-    private fun unlockedCatCount(): Int =
-        prefs.getInt("unlockedCats", 1).coerceIn(1, catCount)
-
-    /** A random one of the unlocked cat photos, 0 if the drawable is missing. */
-    private fun randomUnlockedCatRes(): Int =
-        catDrawableRes(java.util.concurrent.ThreadLocalRandom.current().nextInt(unlockedCatCount()) + 1)
 
     private fun pillText(seconds: Int): String {
         val minutes = seconds / 60

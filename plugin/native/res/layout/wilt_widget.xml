@@ -100,6 +100,6 @@
         android:layout_height="76dp"
         android:layout_marginStart="12dp"
         android:scaleType="fitCenter"
-        android:src="@drawable/wilt_catface_1"
+        android:src="@drawable/wilt_pill_head_1"
         android:contentDescription="Cat, decaying with time spent" />
 </LinearLayout>
