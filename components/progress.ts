@@ -7,24 +7,19 @@ export const LADDER = [60, 45, 30, 15, 10, 5] as const;
 export const LIMIT_OPTIONS: number[] = [...LADDER].reverse();
 
 /** The most a single day can be worth, however little you scrolled. */
-export const MAX_POINTS_PER_DAY = 50;
+export const MAX_COINS_PER_DAY = 50;
+
+/** Minutes of short-form time at which a day stops paying anything. */
+export const COIN_ZERO_MINUTES = 45;
 
 /**
- * What one day earned: the share of your limit you did NOT spend, scaled to
- * MAX_POINTS_PER_DAY. Nothing scrolled pays the full 50, half your limit pays
- * 25, reaching the limit pays nothing.
- *
- * This is deliberately independent of which rung of the ladder you are on. The
- * old table paid by limit alone (10/day at 120 minutes, 100/day at 15), so
- * tightening the limit inflated the score even if behaviour never changed, and
- * scrolling 29 of 30 minutes scored exactly the same as scrolling none.
+ * What one day earned in coins: a straight line from MAX_COINS_PER_DAY at no
+ * short-form time down to 0 at COIN_ZERO_MINUTES. Only minutes used count. The
+ * day's limit plays no part, so tightening it never inflates the balance.
  */
-export function pointsForDay(day: WiltDay, currentLimit: number): number {
-  const limit = day.limitMinutes ?? currentLimit;
-  if (limit <= 0) return 0;
-  const spent = day.seconds / (limit * 60);
-  const earned = Math.round(MAX_POINTS_PER_DAY * (1 - spent));
-  return Math.max(0, Math.min(MAX_POINTS_PER_DAY, earned));
+export function coinsForDay(day: WiltDay): number {
+  const earned = Math.round(MAX_COINS_PER_DAY * (1 - day.seconds / 60 / COIN_ZERO_MINUTES));
+  return Math.max(0, Math.min(MAX_COINS_PER_DAY, earned));
 }
 
 /** The next tighter rung below `limitMinutes`, or null at/below the 5-min floor. */
@@ -37,17 +32,6 @@ export function nextRungBelow(limitMinutes: number): number | null {
 export function isCleanDay(day: WiltDay, currentLimit: number): boolean {
   const limit = day.limitMinutes ?? currentLimit;
   return day.seconds <= limit * 60;
-}
-
-/**
- * Lifetime points: what every recorded day earned, added up. Over-limit days
- * are not skipped, they simply earn nothing, so there is no cliff between a day
- * just under the limit and one just over.
- */
-export function lifetimePoints(history: WiltDay[], currentLimit: number): number {
-  let total = 0;
-  for (const d of history) total += pointsForDay(d, currentLimit);
-  return total;
 }
 
 /**
@@ -89,39 +73,43 @@ export function streaks(
 
 export type ProgressSeen = {
   lastCelebratedStreakMilestone: number;
-  lastPointsCelebrated: number;
 };
 
 /**
- * Points from days that are over. Today is never banked: its value keeps
- * shrinking as you scroll, so counting it would hand out a full day's points
+ * Coins from days that are over. Today is never banked: its value keeps
+ * shrinking as you scroll, so counting it would hand out a full day's coins
  * the moment the app is installed and then take them back all afternoon.
  */
-export function bankedPoints(history: WiltDay[], today: string, currentLimit: number): number {
-  return lifetimePoints(history.filter((d) => d.date < today), currentLimit);
+export function bankedCoins(history: WiltDay[], today: string): number {
+  let total = 0;
+  for (const d of history) if (d.date < today) total += coinsForDay(d);
+  return total;
 }
 
 /**
- * What today is on course to add: its points as they stand right now, or the
+ * What today is on course to add: its coins as they stand right now, or the
  * full daily maximum when nothing has been recorded yet. Banked at midnight.
  */
-export function pendingPoints(history: WiltDay[], today: string, currentLimit: number): number {
+export function pendingCoins(history: WiltDay[], today: string): number {
   const live = history.find((d) => d.date === today);
-  return live ? pointsForDay(live, currentLimit) : MAX_POINTS_PER_DAY;
+  return live ? coinsForDay(live) : MAX_COINS_PER_DAY;
+}
+
+/** What you can spend: banked coins minus what the closet has taken, never below 0. */
+export function coinBalance(banked: number, spent: number): number {
+  return Math.max(0, banked - spent);
 }
 
 export type Progress = {
   streak: number;
   best: number;
-  /** Lifetime points from completed days. Only these unlock cats. */
-  points: number;
-  /** Today's points so far, banked at midnight. */
-  pendingPoints: number;
+  /** Coins from completed days (before spending). */
+  coins: number;
+  /** Today's coins so far, banked at midnight. */
+  pendingCoins: number;
   limit: number;
   nextRung: number | null;
-  unlockedCount: number;
   pendingLevelDown: { from: number; to: number; milestone: number } | null;
-  pendingCatUnlocks: number[];
 };
 
 /**
@@ -132,38 +120,23 @@ export function computeProgress(
   history: WiltDay[],
   currentLimit: number,
   today: string,
-  catThresholds: number[],
   seen: ProgressSeen
 ): Progress {
   const { current: streak, best } = streaks(history, today, currentLimit);
-  const points = bankedPoints(history, today, currentLimit);
-  const pending = pendingPoints(history, today, currentLimit);
   const nextRung = nextRungBelow(currentLimit);
-
-  // Banked points only ever grow, so unlocking is one-way by construction. The
-  // celebrated high-water mark is still honoured for anyone who unlocked under
-  // the old rule, when today's live points counted.
-  const unlockedAt = Math.max(points, seen.lastPointsCelebrated);
-  const unlockedCount = catThresholds.filter((t) => t <= unlockedAt).length;
 
   const pendingLevelDown =
     streak > 0 && streak % 7 === 0 && nextRung !== null && streak > seen.lastCelebratedStreakMilestone
       ? { from: currentLimit, to: nextRung, milestone: streak }
       : null;
 
-  const pendingCatUnlocks = catThresholds
-    .filter((t) => t > seen.lastPointsCelebrated && t <= points)
-    .sort((a, b) => a - b);
-
   return {
     streak,
     best,
-    points,
-    pendingPoints: pending,
+    coins: bankedCoins(history, today),
+    pendingCoins: pendingCoins(history, today),
     limit: currentLimit,
     nextRung,
-    unlockedCount,
     pendingLevelDown,
-    pendingCatUnlocks,
   };
 }
