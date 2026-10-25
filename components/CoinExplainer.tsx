@@ -8,6 +8,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
 
 import { C } from "./console";
@@ -27,23 +28,41 @@ const CLOSE = { duration: 380, easing: Easing.bezier(0.4, 0, 0.2, 1) };
 const VEIL_IN = { duration: 280, easing: Easing.out(Easing.quad) };
 const TEXT_IN = { duration: 300, easing: Easing.bezier(0.2, 0.9, 0.3, 1) };
 const TEXT_OUT = { duration: 200, easing: Easing.out(Easing.quad) };
+/** Once home, the flying coin fades out over the tile's own, which is back underneath. */
+const HANDBACK = { duration: 120, easing: Easing.linear };
 
 /**
  * What coins are for, told by the coin itself: the tile's coin flies to the
  * middle of a blurred, dimmed screen, grows and spins once, and two lines
  * explain it. Any tap (or Back) sends it home, and [onClose] fires once it
  * has landed back in the tile.
+ *
+ * [lifted] is the tile's say on its own coin: this layer sets it to 1 when
+ * the flying coin is on screen over the tile's and back to 0 when it lands,
+ * so the two hand over without a gap.
  */
 export function CoinExplainer({
   visible,
   from,
+  lifted,
   onClose,
 }: {
   visible: boolean;
   from: CoinOrigin | null;
+  lifted: SharedValue<number>;
   onClose: () => void;
 }) {
   const close = useRef<(() => void) | null>(null);
+  // Android's word that the Modal's window is on screen. Kept out here because
+  // onShow can come before Flight has mounted (it does under load), and a
+  // signal sent to a Flight that is not there yet would be lost: the coin
+  // would sit on the tile with the layer up, eating the next tap.
+  const shown = useRef(false);
+  const onShown = useRef<(() => void) | null>(null);
+  const closed = () => {
+    shown.current = false;
+    onClose();
+  };
   return (
     <Modal
       visible={visible && from !== null}
@@ -51,29 +70,50 @@ export function CoinExplainer({
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
+      onShow={() => {
+        shown.current = true;
+        onShown.current?.();
+      }}
       onRequestClose={() => close.current?.()}
     >
-      {visible && from ? <Flight from={from} onClose={onClose} closeRef={close} /> : null}
+      {visible && from ? (
+        <Flight
+          from={from}
+          lifted={lifted}
+          onClose={closed}
+          closeRef={close}
+          shown={shown}
+          onShownRef={onShown}
+        />
+      ) : null}
     </Modal>
   );
 }
 
 function Flight({
   from,
+  lifted,
   onClose,
   closeRef,
+  shown,
+  onShownRef,
 }: {
   from: CoinOrigin;
+  lifted: SharedValue<number>;
   onClose: () => void;
   closeRef: { current: (() => void) | null };
+  shown: { readonly current: boolean };
+  onShownRef: { current: (() => void) | null };
 }) {
   const [screen, setScreen] = useState<{ w: number; h: number } | null>(null);
+  const laidOut = useRef(false);
   const started = useRef(false);
   const closing = useRef(false);
   // 0 sits on the tile, 1 rests in the middle (the open curve overshoots it).
   const p = useSharedValue(0);
   const veil = useSharedValue(0);
   const text = useSharedValue(0);
+  const coin = useSharedValue(1);
   // The coin starts on the tile and rests at [tx, ty]. Worklets read the
   // target directly, so no frame flies to a stale one.
   const fx = from.x + from.size / 2;
@@ -81,11 +121,6 @@ function Flight({
   const tx = useSharedValue(fx);
   const ty = useSharedValue(fy);
   const k = from.size / SIZE;
-
-  const landed = () => {
-    feel("settle");
-    onClose();
-  };
 
   const goHome = () => {
     if (closing.current) return;
@@ -95,33 +130,53 @@ function Flight({
     // Land even if the flight home was cut short, or the full-screen Modal
     // would stay up with nothing left to close it.
     p.value = withTiming(0, CLOSE, () => {
-      runOnJS(landed)();
+      // Home. The tile's coin comes back underneath in this same UI frame, then
+      // this one fades out on top of it. Swapping them in one frame shows:
+      // Android drops the Modal's window before the tile redraws, and the two
+      // are not rasterised alike (this one is a big coin scaled down).
+      lifted.value = 0;
+      coin.value = withTiming(0, HANDBACK, () => {
+        runOnJS(onClose)();
+      });
+      runOnJS(feel)("settle");
     });
   };
   closeRef.current = goHome;
   useMountEffect(() => () => {
     closeRef.current = null;
+    onShownRef.current = null;
+    // Gone without landing, the tile must not be left without its coin.
+    lifted.value = 0;
   });
 
-  // The flight starts once this full-screen layer knows its size. Android can
-  // lay the window out twice (first inside the system bars, then edge to
-  // edge), so the target follows every layout while the flight itself starts
-  // only once.
+  // The flight needs both this layer's size and Android's word that the
+  // Modal's window is on screen. Started on layout alone, the clock runs
+  // before the window shows and the coin appears already mid-air.
+  const start = () => {
+    // A close that began before the start must not be undone by the open.
+    if (started.current || closing.current || !laidOut.current || !shown.current) return;
+    started.current = true;
+    lifted.value = 1;
+    veil.value = withTiming(1, VEIL_IN);
+    p.value = withTiming(1, OPEN);
+    text.value = withDelay(260, withTiming(1, TEXT_IN));
+  };
+  onShownRef.current = start;
+
+  // Android can lay the window out twice (first inside the system bars, then
+  // edge to edge), so the target follows every layout.
   const onLayout = (e: LayoutChangeEvent) => {
-    // A close that began before the first layout must not be undone by the open.
     if (closing.current) return;
     const { width, height } = e.nativeEvent.layout;
     setScreen({ w: width, h: height });
     tx.value = width / 2;
     ty.value = height * REST_Y;
-    if (started.current) return;
-    started.current = true;
-    veil.value = withTiming(1, VEIL_IN);
-    p.value = withTiming(1, OPEN);
-    text.value = withDelay(260, withTiming(1, TEXT_IN));
+    laidOut.current = true;
+    start();
   };
 
   const coinStyle = useAnimatedStyle(() => ({
+    opacity: coin.value,
     transform: [
       { translateX: fx + (tx.value - fx) * p.value - SIZE / 2 },
       { translateY: fy + (ty.value - fy) * p.value - SIZE / 2 },

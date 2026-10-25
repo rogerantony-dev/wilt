@@ -9,11 +9,28 @@
 //   head   cat(t) from rot-cat.js
 //   top    the top item (headwear)
 // Every layer is drawn in the same box so the PNGs stack exactly.
+//
+// Chibi proportions: in the figure box the head layers (head, top) are scaled up by
+// 1.24 and the body layers (base, bottom, body) squashed to 1.1 x 0.7 about the
+// neck, then everything moves down 48 so the cat fills the box as it did before.
+// Each part is drawn in its own coordinates; FIGURE_TF places it. The pill box
+// shows the head at its own size. Mirrored in components/catshapes.ts.
 
 // The t each stage (1..6) is rendered at. Must match STAGE_T in components/catdecay.ts.
 const STAGE_T = [0.05, 0.5, 0.72, 0.87, 0.96, 1.0];
 
 const FIGURE_LAYERS = ['base', 'bottom', 'body', 'head', 'top'];
+// head: scale 1.24 about (128, 176), then down 48; body: scale 1.1 x 0.7 about (128, 206), then down 48.
+const FIGURE_TF = {
+  head: 'matrix(1.24 0 0 1.24 -30.72 5.76)',
+  body: 'matrix(1.1 0 0 0.7 -12.8 109.8)',
+};
+// Places a layer's markup for its box: every crop of the figure gets the chibi
+// transforms; only the pill box draws the head at its own size.
+const placed = (box, layer, inner) => {
+  if (boxOf(box) === BOXES.pill) return inner;
+  return inner ? `<g transform="${FIGURE_TF[layer === 'head' || layer === 'top' ? 'head' : 'body']}">${inner}</g>` : '';
+};
 const PILL_LAYERS = ['head', 'top'];
 const BOXES = {
   figure: { view: '0 -40 256 440', layers: FIGURE_LAYERS }, // rendered at 360 x 619
@@ -174,12 +191,12 @@ const wrap = (view, inner) => `<svg viewBox="${view}" xmlns="http://www.w3.org/2
 // One layer in its box. opts = { item, box: 'figure' | 'pill', id }.
 function figureLayer(layer, t, opts) {
   const b = boxOf(opts.box || 'figure');
-  return wrap(b.view, layerInner(layer, t, opts.item || 'none', opts.id));
+  return wrap(b.view, placed(b, layer, layerInner(layer, t, opts.item || 'none', opts.id)));
 }
 
 // Every layer of the box, stacked. box is 'figure', 'pill', or { view, layers } for a crop.
 let figureUid = 0;
 function fullFigure(t, outfit, box = 'figure') {
   const b = boxOf(box), id = 'ff' + (++figureUid);
-  return wrap(b.view, b.layers.map(l => layerInner(l, t, l === 'base' || l === 'head' ? 'none' : outfit[l], id)).join(''));
+  return wrap(b.view, b.layers.map(l => placed(b, l, layerInner(l, t, l === 'base' || l === 'head' ? 'none' : outfit[l], id))).join(''));
 }

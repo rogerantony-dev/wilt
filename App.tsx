@@ -6,6 +6,7 @@ import {
   Platform,
   View,
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, type SharedValue } from "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
@@ -75,6 +76,10 @@ export default function App() {
   const [closetOpen, setClosetOpen] = useState(false);
   // The tile coin's place on screen while the explainer is up; null when shut.
   const [coinFrom, setCoinFrom] = useState<CoinOrigin | null>(null);
+  // 1 while the explainer's coin is the one on screen, so the tile's own hides.
+  // A shared value, not state: the explainer flips it on the UI thread in the
+  // same frame it starts or ends the flight, with no React render in between.
+  const coinLifted = useSharedValue(0);
   const [limitPickerOpen, setLimitPickerOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [milestone, setMilestone] = useState<{
@@ -315,7 +320,7 @@ export default function App() {
                 streak={progress.streak}
                 coins={balance}
                 pendingCoins={progress.pendingCoins}
-                coinOpen={coinFrom !== null}
+                coinLifted={coinLifted}
                 outfit={outfit}
                 mode={mode}
                 seconds={seconds}
@@ -366,7 +371,12 @@ export default function App() {
         onChanged={refresh}
       />
 
-      <CoinExplainer visible={coinFrom !== null} from={coinFrom} onClose={() => setCoinFrom(null)} />
+      <CoinExplainer
+        visible={coinFrom !== null}
+        from={coinFrom}
+        lifted={coinLifted}
+        onClose={() => setCoinFrom(null)}
+      />
 
       <MilestoneModal
         visible={milestone !== null}
@@ -434,7 +444,7 @@ function Dashboard({
   streak,
   coins,
   pendingCoins,
-  coinOpen,
+  coinLifted,
   outfit,
   onGrantMinute,
   onChangeMode,
@@ -453,8 +463,8 @@ function Dashboard({
   streak: number;
   coins: number;
   pendingCoins: number;
-  /** The explainer has the coin, so the tile's own coin hides. */
-  coinOpen: boolean;
+  /** 1 while the explainer has the coin, so the tile's own coin hides. */
+  coinLifted: SharedValue<number>;
   outfit: Outfit;
   onGrantMinute: () => void;
   onChangeMode: (mode: WiltMode) => void;
@@ -508,7 +518,7 @@ function Dashboard({
 
       <View className="flex-row gap-2.5">
         <StatTile value={`${streak}`} label={streak === 1 ? "day clean" : "days clean"} onPress={onOpenHistory} />
-        <CoinTile coins={coins} pending={pendingCoins} hidden={coinOpen} onOpen={onOpenCoin} />
+        <CoinTile coins={coins} pending={pendingCoins} lifted={coinLifted} onOpen={onOpenCoin} />
       </View>
 
       {limitReached ? (
@@ -606,15 +616,16 @@ function StatTile({ value, label, onPress }: { value: string; label: string; onP
 function CoinTile({
   coins,
   pending,
-  hidden,
+  lifted,
   onOpen,
 }: {
   coins: number;
   pending: number;
-  hidden: boolean;
+  lifted: SharedValue<number>;
   onOpen: (from: CoinOrigin) => void;
 }) {
   const coinRef = useRef<View>(null);
+  const coinStyle = useAnimatedStyle(() => ({ opacity: 1 - lifted.value }));
   // Page coordinates count from the top of the screen, the same space the
   // explainer's edge-to-edge layer draws in. measureInWindow would leave out
   // the status bar and start the coin too high.
@@ -625,13 +636,18 @@ function CoinTile({
       variant="ghost"
       className="flex-1 flex-col items-start gap-0 rounded-2xl px-3.5 py-3"
       style={GLASS}
+      // No press shrink: measure reads the coin through the tile's transform,
+      // so a shrunken tile would send the coin home a few pixels off, and it
+      // would step sideways when the tile's own came back. The flight is the
+      // feedback here.
+      pressScale={1}
       onPress={open}
       accessibilityLabel={`${coins} coins${pending > 0 ? `, ${pending} more at midnight` : ""}`}
     >
       <View className="flex-row items-center" style={{ gap: 6 }}>
-        <View ref={coinRef} collapsable={false} style={hidden ? { opacity: 0 } : undefined}>
+        <Animated.View ref={coinRef} collapsable={false} style={coinStyle}>
           <GoldCoin size={22} />
-        </View>
+        </Animated.View>
         <Text weight="bold" style={{ fontSize: 22, lineHeight: 26, letterSpacing: -0.6, fontVariant: ["tabular-nums"] }}>
           {coins.toLocaleString()}
         </Text>

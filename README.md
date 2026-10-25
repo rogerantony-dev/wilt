@@ -14,8 +14,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/guilt-counting.png" width="255" alt="Home screen showing 0 minutes wasted today and 15 minutes left on the clock">
-  <img src="docs/screenshots/guilt-limit-reached.png" width="255" alt="Home screen after the limit is reached, reading walled off till midnight">
+  <img src="docs/screenshots/guilt-counting.png" width="255" alt="Home screen with 18 minutes left of a 30-minute limit, the cat in a crown and hoodie, 12 days clean and 152 coins">
+  <img src="docs/screenshots/guilt-limit-reached.png" width="255" alt="Home screen after the limit is reached, reading walled off, with the cat wilted in its outfit">
   <img src="docs/screenshots/block-cover.png" width="255" alt="Instagram feed blanked out and replaced with the wilting cat">
 </p>
 
@@ -33,7 +33,7 @@ Wilt measures only the short-form feeds. It keeps a live timer on screen while y
 
 **Block** refuses outright. Every reel and short is walled off from the moment you open the app, all day. Leaving Block mode makes you confirm it in writing.
 
-<p><img src="docs/screenshots/block-mode.png" width="255" alt="Block mode home screen reading reels can't reach you"></p>
+<p><img src="docs/screenshots/block-mode.png" width="255" alt="Block mode home screen reading walled off, reels can't reach you till midnight, with the cat asleep"></p>
 
 Lowering your limit takes effect instantly. Raising it waits until tomorrow's reset, so you cannot talk your way out of a block mid-scroll.
 
@@ -59,13 +59,18 @@ Each finished day pays up to 50 coins, on minutes alone: 50 for a day with no sc
 
 Spend them in the Closet on clothes for the cat: something for its head, its body and its legs. A few pieces are free, the rest cost from 100 to 900 coins, and spent coins stay spent. The cat wears its outfit everywhere it appears: home, the pill, the block screen and the nudge. It still wilts in it.
 
+<p>
+  <img src="docs/screenshots/closet.png" width="255" alt="Closet sheet with Top, Body and Bottom tabs and a grid of hats, some priced in coins">
+  <img src="docs/screenshots/coins.png" width="255" alt="A gold coin over the blurred home screen: scroll less, earn up to 50 a day. Spend them on clothes in the Closet.">
+</p>
+
 ## History and widget
 
 Seven days, thirty, or everything, by time or by count. History starts the day you install, fills in one day at a time, and never leaves the device. The widget carries the same number to your home screen.
 
 <p>
-  <img src="docs/screenshots/history-time.png" width="255" alt="History screen showing minutes per day">
-  <img src="docs/screenshots/widget-over-limit.png" width="480" alt="Home screen widget reading 18m wasted today, 3 min over your 15-min limit">
+  <img src="docs/screenshots/history-time.png" width="255" alt="History screen showing a week of minutes per day, 14 minutes a day on average">
+  <img src="docs/screenshots/widget-over-limit.png" width="480" alt="Home screen widget reading 32m wasted today, 2 min over your 30-min limit, with the wilted cat in its crown">
 </p>
 
 ## How it works
@@ -78,7 +83,7 @@ Nothing is recorded, logged, or transmitted. **There is no code anywhere in the 
 
 So it needs two permissions, both explained before either is requested:
 
-<p><img src="docs/screenshots/onboarding-4-permissions.png" width="255" alt="Onboarding screen explaining the two permissions the app needs"></p>
+<p><img src="docs/screenshots/onboarding-4-permissions.png" width="255" alt="Onboarding page reading almost there, with switches for draw over apps and the accessibility service"></p>
 
 ## Install
 
@@ -160,7 +165,7 @@ To add a Closet item: add it to `ITEMS` in `components/closet.ts` and, with the 
 ### Gotchas
 
 - **`adb shell am force-stop` kills the accessibility service**, and Android leaves it switched off. The app then drops back to onboarding until you re-enable it in Settings. Use `adb shell input keyevent KEYCODE_HOME` instead when you just want the app backgrounded.
-- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when one of the apps listed in `plugin/native/PaymentPause.kt` comes to the front, or any app that hides its screen from accessibility services (Android 14's accessibilityDataSensitive, which is what banking apps do), the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb, after which Wilt turns itself back on from the resume screen and about four minutes after each pause. Grant Usage access as well and it comes back the moment you leave the payment app:
+- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when a payment app comes to the front, the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Wilt finds payment apps on the phone itself: apps that take `upi://pay` links, apps whose name says bank, UPI, pay or wallet, and the short `known` list in `plugin/native/PaymentPause.kt`. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb. After that, Wilt turns itself back on when you open it, a few minutes after each pause (checking every 30 seconds until you have left the payment app), and after a reboot or an update. Grant Usage access as well and it comes back the moment you leave the payment app:
 
   ```bash
   adb shell pm grant com.rogerantony.wilt android.permission.WRITE_SECURE_SETTINGS

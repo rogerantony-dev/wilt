@@ -14,6 +14,7 @@ import Animated, {
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 
 import { CatFigure } from "./CatFigure";
+import { EYE_R, EYE_X, EYE_Y } from "./catdecay";
 import { FIGURE_BOX } from "./catshapes";
 import { translateXScaleY } from "./catmatrix";
 import { NO_OUTFIT, type Outfit } from "./closet";
@@ -100,8 +101,8 @@ export function DiscHero({
   }));
   const eyeProps = useAnimatedProps(() => ({
     matrix: asleep
-      ? translateXScaleY(0, 0.04, 128)
-      : translateXScaleY(-6 + dart.value * 12, 1 - blink.value, 128),
+      ? translateXScaleY(0, 0.04, EYE_Y)
+      : translateXScaleY(-6 + dart.value * 12, 1 - blink.value, EYE_Y),
   })) as never;
   // The liquid: a rect whose top edge is at the level, plus a slightly lighter
   // ellipse riding the surface so it reads as a fill and not a flat band.
@@ -153,9 +154,15 @@ export function DiscHero({
         >
           {asleep ? (
             <>
-              <Ellipse cx={102} cy={128} rx={21} ry={20} fill="#33322E" />
-              <Ellipse cx={154} cy={128} rx={21} ry={20} fill="#33322E" />
-              <Path d="M86 130 q16 12 32 0 M138 130 q16 12 32 0" fill="none" stroke="#0D0D0C" strokeWidth={7} strokeLinecap="round" />
+              <Ellipse cx={EYE_X[0]} cy={EYE_Y} rx={EYE_R + 4} ry={EYE_R + 3} fill="#33322E" />
+              <Ellipse cx={EYE_X[1]} cy={EYE_Y} rx={EYE_R + 4} ry={EYE_R + 3} fill="#33322E" />
+              <Path
+                d={`M${EYE_X[0] - 18} ${EYE_Y + 2} q18 13 36 0 M${EYE_X[1] - 18} ${EYE_Y + 2} q18 13 36 0`}
+                fill="none"
+                stroke="#0D0D0C"
+                strokeWidth={7}
+                strokeLinecap="round"
+              />
             </>
           ) : null}
         </CatFigure>
