@@ -23,6 +23,7 @@ import HgSparkles from "@hugeicons/core-free-icons/SparklesIcon";
 import HgSliders from "@hugeicons/core-free-icons/SlidersHorizontalIcon";
 import HgInstagram from "@hugeicons/core-free-icons/InstagramIcon";
 import HgYoutube from "@hugeicons/core-free-icons/YoutubeIcon";
+import HgTShirt from "@hugeicons/core-free-icons/TShirtIcon";
 
 export type IconProps = { size?: number; color?: string; strokeWidth?: number };
 
@@ -52,3 +53,4 @@ export const SparklesIcon = make(HgSparkles);
 export const SlidersIcon = make(HgSliders);
 export const InstagramIcon = make(HgInstagram, 16);
 export const YoutubeIcon = make(HgYoutube, 16);
+export const ShirtIcon = make(HgTShirt);

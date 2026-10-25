@@ -23,6 +23,7 @@ import type { Outfit } from "./closet";
  * keeps its own 0..256 coordinates, so `eyes` and `children` (drawn over the
  * head, under the top item) work in head coordinates as they do with CatHead.
  * `clipId` must be unique per mounted instance; the SVG ids derive from it.
+ * `viewBox` overrides the box, to crop the drawing (the closet's slot tiles).
  */
 export function CatFigure({
   t,
@@ -32,6 +33,7 @@ export function CatFigure({
   width,
   height,
   headOnly = false,
+  viewBox,
   children,
 }: {
   t: number;
@@ -41,6 +43,7 @@ export function CatFigure({
   width: number;
   height: number;
   headOnly?: boolean;
+  viewBox?: string;
   children?: ReactNode;
 }) {
   const box = headOnly ? PILL_BOX : FIGURE_BOX;
@@ -49,7 +52,7 @@ export function CatFigure({
   const top = itemShapes("top", outfit.top, t);
 
   return (
-    <Svg width={width} height={height} viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}>
+    <Svg width={width} height={height} viewBox={viewBox ?? `${box.x} ${box.y} ${box.w} ${box.h}`}>
       {pattern ? (
         <Defs>
           <Pattern id={patternId} width={10} height={16} patternUnits="userSpaceOnUse">
