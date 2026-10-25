@@ -29,7 +29,7 @@ export function PaymentPauseScreen({
 }) {
   return (
     <View className="grow px-6 pb-7 pt-4">
-      <Brand on={false} />
+      <Brand />
       <View className="flex-1 justify-center">
         <View className="h-14 w-14 items-center justify-center rounded-full bg-warning-subtle">
           <PauseIcon size={26} color={C.amber} />
@@ -49,7 +49,7 @@ export function PaymentPauseScreen({
               : "To turn it back on, open Accessibility settings, go to Installed apps (Downloaded apps on some phones), pick Wilt Reel Counter, and switch it on."}
         </Typography>
       </View>
-      <PrimaryButton onPress={onResume}>
+      <PrimaryButton haptic={canAutoResume ? "confirm" : "tap"} onPress={onResume}>
         {canAutoResume ? "Turn Wilt back on" : "Open accessibility settings"}
       </PrimaryButton>
       <GhostButton className="mt-2" onPress={onDismiss}>

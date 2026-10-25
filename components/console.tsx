@@ -5,6 +5,7 @@ import { Text } from "./ui/text";
 import { Tabs } from "./ui/tabs";
 import { Progress } from "./ui/progress";
 import { GLASS } from "./kit";
+import { feel } from "../lib/haptics";
 
 /**
  * Shared building blocks for Wilt's "Quiet" look — minimal and dark-first.
@@ -31,15 +32,12 @@ export const C = {
   toxicdeep: "#0E3D29",
 } as const;
 
-/** Wordmark with a status dot — green when the service is live, dim otherwise. */
-export function Brand({ on = true }: { on?: boolean }) {
+/** The wordmark. */
+export function Brand() {
   return (
-    <View className="flex-row items-center gap-2.5">
-      <View className={`h-[7px] w-[7px] rounded-full ${on ? "bg-success" : "bg-dim"}`} />
-      <Text size="base" weight="semibold" style={{ letterSpacing: -0.2 }}>
-        Wilt
-      </Text>
-    </View>
+    <Text size="base" weight="semibold" style={{ letterSpacing: -0.2 }}>
+      Wilt
+    </Text>
   );
 }
 
@@ -74,7 +72,15 @@ export function Segmented<T extends string>({
   onChange: (key: T) => void;
 }) {
   return (
-    <Tabs value={value} defaultValue={value} onValueChange={(v) => onChange(v as T)} variant="segmented">
+    <Tabs
+      value={value}
+      defaultValue={value}
+      onValueChange={(v) => {
+        feel("tick");
+        onChange(v as T);
+      }}
+      variant="segmented"
+    >
       <Tabs.List className="rounded-[16px] p-1" style={GLASS} indicatorClassName="rounded-[12px] bg-bone/10">
         {options.map((o) => (
           <Tabs.Trigger key={o.key} value={o.key} className="rounded-[12px] py-2.5">

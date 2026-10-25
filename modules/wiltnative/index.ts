@@ -2,6 +2,22 @@ import { requireNativeModule } from "expo";
 
 export type WiltMode = "guilt" | "block";
 
+/**
+ * What Wilt can guard, one toggle each: the parts of Instagram and YouTube,
+ * and any app the user added (`app:<package>`, guarded whole).
+ */
+export type WiltSurface =
+  | "igReels"
+  | "igFeed"
+  | "igStories"
+  | "igDms"
+  | "ytShorts"
+  | "ytVideo"
+  | `app:${string}`;
+
+/** An installed app, for the Apps sheet. `icon` is a PNG data URI when available. */
+export type WiltApp = { pkg: string; label: string; icon: string | null };
+
 export type WiltStatus = {
   /** "Draw over other apps" permission granted. */
   overlay: boolean;
@@ -27,8 +43,12 @@ export type WiltStatus = {
   graceLeft: number;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
   lastCelebratedStreakMilestone: number;
-  /** Lifetime points value at which cat-unlock reveals were last shown. */
-  lastPointsCelebrated: number;
+  /** What the cat wears per slot ("none" when bare). */
+  outfit: Record<"top" | "body" | "bottom", string>;
+  /** Paid item ids bought so far (free items are owned by everyone). */
+  ownedItems: string[];
+  /** Coins spent in the closet; the balance is banked coins minus this. */
+  coinsSpent: number;
   /**
    * Label of the payment app the service switched itself off for (Paytm etc.
    * refuse to pay while a third-party accessibility service is enabled), or
@@ -39,6 +59,15 @@ export type WiltStatus = {
   canAutoResume: boolean;
   /** Usage access is granted too, so a pause ends the moment the payment app is left. */
   resumesOnLeave: boolean;
+  /**
+   * Which surfaces are guarded right now: counted toward the limit in Guilt,
+   * blocked in Block. Missing keys (an old native build) read as unguarded.
+   */
+  surfaces: Partial<Record<WiltSurface, boolean>>;
+  /** Guarded today, switched off from the next daily reset. */
+  surfacesPendingOff: WiltSurface[];
+  /** Apps the user added to the Apps sheet, A to Z; guarded per `surfaces["app:<pkg>"]`. */
+  customApps: WiltApp[];
 };
 
 export type WiltDay = {
@@ -61,12 +90,16 @@ type NativeModule = {
   setLimitNow(minutes: number): void;
   grantExtraMinute(): void;
   getHistory(): WiltDay[];
-  consumeOpenCats(): boolean;
   markStreakCelebrated(milestone: number): void;
-  markPointsCelebrated(points: number): void;
-  setUnlockedCats(count: number): void;
+  wearItem(slot: string, id: string): boolean;
+  buyItem(slot: string, id: string, balance: number): boolean;
   resumeAfterPayment(): boolean;
+  turnOnService(): boolean;
   dismissPaymentPause(): void;
+  setSurface(key: WiltSurface, on: boolean): void;
+  listApps(): WiltApp[];
+  addApp(pkg: string): void;
+  removeApp(pkg: string): boolean;
 };
 
 // Lazily resolved so JS never crashes if the native module isn't present
@@ -134,15 +167,6 @@ export function getHistory(): WiltDay[] {
   }
 }
 
-export function consumeOpenCats(): boolean {
-  if (!nativeModule) return false;
-  try {
-    return nativeModule.consumeOpenCats();
-  } catch {
-    return false;
-  }
-}
-
 export function markStreakCelebrated(milestone: number): void {
   if (!nativeModule) return;
   try {
@@ -152,26 +176,26 @@ export function markStreakCelebrated(milestone: number): void {
   }
 }
 
-export function markPointsCelebrated(points: number): void {
-  if (!nativeModule) return;
+/** Put an owned item on the cat. False when it is unknown or not owned. */
+export function wearItem(slot: string, id: string): boolean {
+  if (!nativeModule) return false;
   try {
-    nativeModule.markPointsCelebrated(points);
+    return nativeModule.wearItem(slot, id);
   } catch {
-    // no-op if the native module isn't available
+    return false;
   }
 }
 
 /**
- * Tell the service how many gallery cats are unlocked, so the cats it shows on
- * the nudge and the block cover are drawn only from the earned ones. JS owns the
- * number (thresholds and points live in components/cats.ts + progress.ts).
+ * Buy an item and wear it. JS passes the coin balance; native re-checks it and
+ * refuses an owned or unaffordable item. False when it did not go through.
  */
-export function setUnlockedCats(count: number): void {
-  if (!nativeModule) return;
+export function buyItem(slot: string, id: string, balance: number): boolean {
+  if (!nativeModule) return false;
   try {
-    nativeModule.setUnlockedCats(count);
+    return nativeModule.buyItem(slot, id, balance);
   } catch {
-    // no-op if the native module isn't available
+    return false;
   }
 }
 
@@ -196,5 +220,59 @@ export function dismissPaymentPause(): void {
     nativeModule.dismissPaymentPause();
   } catch {
     // no-op if the native module isn't available
+  }
+}
+
+/** Guard a surface now, or stop guarding it from the next daily reset. */
+export function setSurface(key: WiltSurface, on: boolean): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.setSurface(key, on);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/**
+ * Turn the accessibility service on. Returns true when it was switched on
+ * directly (adb-granted WRITE_SECURE_SETTINGS); otherwise Settings >
+ * Accessibility opens on Wilt's entry and the user flips the switch.
+ */
+export function turnOnService(): boolean {
+  if (!nativeModule) return false;
+  try {
+    return nativeModule.turnOnService();
+  } catch {
+    return false;
+  }
+}
+
+/** Launcher apps that can be added to the Apps sheet, A to Z. */
+export function listApps(): WiltApp[] {
+  if (!nativeModule) return [];
+  try {
+    return nativeModule.listApps();
+  } catch {
+    return [];
+  }
+}
+
+/** Add an app to the Apps sheet, guarded from now. */
+export function addApp(pkg: string): void {
+  if (!nativeModule) return;
+  try {
+    nativeModule.addApp(pkg);
+  } catch {
+    // no-op if the native module isn't available
+  }
+}
+
+/** Take an added app off the sheet. False while it is still guarded. */
+export function removeApp(pkg: string): boolean {
+  if (!nativeModule) return false;
+  try {
+    return nativeModule.removeApp(pkg);
+  } catch {
+    return false;
   }
 }

@@ -1,4 +1,4 @@
-import { pointsForDay, MAX_POINTS_PER_DAY, nextRungBelow, LADDER, isCleanDay, lifetimePoints, bankedPoints, pendingPoints, streaks, computeProgress } from "./progress";
+import { coinsForDay, bankedCoins, pendingCoins, coinBalance, nextRungBelow, LADDER, isCleanDay, streaks, computeProgress } from "./progress";
 import type { WiltDay } from "../modules/wiltnative";
 
 const day = (date: string, seconds: number, limitMinutes?: number): WiltDay => ({
@@ -7,39 +7,32 @@ const day = (date: string, seconds: number, limitMinutes?: number): WiltDay => (
 
 const mins = (m: number) => m * 60;
 
-describe("pointsForDay", () => {
-  it("pays the full daily maximum for a day with no short-form time", () => {
-    expect(pointsForDay(day("2026-07-01", 0, 30), 30)).toBe(MAX_POINTS_PER_DAY);
-    expect(MAX_POINTS_PER_DAY).toBe(50);
-  });
+// A day with `s` seconds of short-form time, and the same on a given date.
+const cday = (s: number): WiltDay => day("2026-10-25", s);
+const d = (date: string, s: number): WiltDay => day(date, s);
 
-  it("scales with the share of the limit left unspent", () => {
-    expect(pointsForDay(day("2026-07-01", mins(8), 30), 30)).toBe(37);
-    expect(pointsForDay(day("2026-07-01", mins(15), 30), 30)).toBe(25);
-    expect(pointsForDay(day("2026-07-01", mins(27), 30), 30)).toBe(5);
+describe("coinsForDay", () => {
+  it("pays 50 for a day with no short-form time", () => expect(coinsForDay(cday(0))).toBe(50));
+  it("falls in a straight line to 0 at 45 minutes", () => {
+    expect(coinsForDay(cday(9 * 60))).toBe(40);
+    expect(coinsForDay(cday(22 * 60))).toBe(26);
+    expect(coinsForDay(cday(44 * 60))).toBe(1);
+    expect(coinsForDay(cday(45 * 60))).toBe(0);
+    expect(coinsForDay(cday(90 * 60))).toBe(0);
   });
+  it("ignores the day's limit", () =>
+    expect(coinsForDay({ ...cday(10 * 60), limitMinutes: 5 })).toBe(coinsForDay({ ...cday(10 * 60), limitMinutes: 60 })));
+});
 
-  it("pays nothing at the limit or beyond it", () => {
-    expect(pointsForDay(day("2026-07-01", mins(30), 30), 30)).toBe(0);
-    expect(pointsForDay(day("2026-07-01", mins(90), 30), 30)).toBe(0);
+describe("bankedCoins / pendingCoins / coinBalance", () => {
+  it("banks only days before today", () =>
+    expect(bankedCoins([d("2026-10-23", 0), d("2026-10-24", 45 * 60), d("2026-10-25", 0)], "2026-10-25")).toBe(50));
+  it("pends 50 when today has no record, else today's live value", () => {
+    expect(pendingCoins([], "2026-10-25")).toBe(50);
+    expect(pendingCoins([d("2026-10-25", 9 * 60)], "2026-10-25")).toBe(40);
   });
-
-  it("scores the same behaviour identically whichever limit you picked", () => {
-    // The old table paid 10/day at a 120-min limit and 100/day at 15. Now a
-    // clean day is a clean day: what varies is how much you actually scrolled.
-    expect(pointsForDay(day("2026-07-01", 0, 120), 120)).toBe(MAX_POINTS_PER_DAY);
-    expect(pointsForDay(day("2026-07-01", 0, 15), 15)).toBe(MAX_POINTS_PER_DAY);
-  });
-
-  it("uses the day's own recorded limit, falling back to the current one", () => {
-    expect(pointsForDay(day("2026-07-01", mins(30), 60), 30)).toBe(25);
-    expect(pointsForDay(day("2026-07-01", mins(15)), 30)).toBe(25);
-  });
-
-  it("never divides by a zero or negative limit", () => {
-    expect(pointsForDay(day("2026-07-01", mins(5), 0), 0)).toBe(0);
-    expect(pointsForDay(day("2026-07-01", mins(5), -10), 30)).toBe(0);
-  });
+  it("never goes below zero", () => expect(coinBalance(100, 250)).toBe(0));
+  it("subtracts what was spent", () => expect(coinBalance(340, 100)).toBe(240));
 });
 
 describe("nextRungBelow", () => {
@@ -81,24 +74,6 @@ describe("isCleanDay", () => {
   });
 });
 
-describe("lifetimePoints", () => {
-  it("sums each day's earnings using that day's own limit", () => {
-    // 10 of 60 spent -> 42; 10 of 30 spent -> 33
-    const h = [day("2026-07-01", mins(10), 60), day("2026-07-02", mins(10), 30)];
-    expect(lifetimePoints(h, 30)).toBe(42 + 33);
-  });
-
-  it("contributes nothing for over-limit days rather than skipping them", () => {
-    const h = [day("2026-07-01", mins(90), 60), day("2026-07-02", mins(0), 30)];
-    expect(lifetimePoints(h, 30)).toBe(MAX_POINTS_PER_DAY);
-  });
-
-  it("caps a perfect day at the daily maximum", () => {
-    const h = Array.from({ length: 4 }, (_, i) => day(`2026-07-0${i + 1}`, 0, 30));
-    expect(lifetimePoints(h, 30)).toBe(4 * MAX_POINTS_PER_DAY);
-  });
-});
-
 describe("streaks", () => {
   it("counts consecutive clean days ending today", () => {
     const h = [day("2026-07-05", 5 * 60, 30), day("2026-07-06", 5 * 60, 30), day("2026-07-07", 5 * 60, 30)];
@@ -132,73 +107,28 @@ const clean7 = (limit: number, startDay: number) =>
   );
 
 describe("computeProgress", () => {
-  const thresholds = [0, 50, 150, 400];
-  const noneSeen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 0 };
+  const noneSeen = { lastCelebratedStreakMilestone: 0 };
 
   it("offers a level-down after a fresh 7-day streak above the floor", () => {
-    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", thresholds, noneSeen);
+    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", noneSeen);
     expect(p.streak).toBe(7);
     expect(p.pendingLevelDown).toEqual({ from: 60, to: 45, milestone: 7 });
   });
 
   it("does not re-offer a milestone already celebrated", () => {
-    const seen = { lastCelebratedStreakMilestone: 7, lastPointsCelebrated: 0 };
-    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", thresholds, seen);
+    const p = computeProgress(clean7(60, 1), 60, "2026-07-07", { lastCelebratedStreakMilestone: 7 });
     expect(p.pendingLevelDown).toBeNull();
   });
 
   it("never offers a level-down at the 5-minute floor", () => {
-    const p = computeProgress(clean7(5, 1), 5, "2026-07-07", thresholds, noneSeen);
+    const p = computeProgress(clean7(5, 1), 5, "2026-07-07", noneSeen);
     expect(p.pendingLevelDown).toBeNull();
   });
 
-  it("reports newly crossed cat thresholds as pending unlocks (the free cat unlocks silently)", () => {
-    // 7 days spending 1 of 15 minutes = 47/day. Today (the 7th) is not banked
-    // yet, so 6 days = 282 pts -> crosses 0,50,150. The free cat (threshold 0)
-    // is unlocked from install, so it never fires.
-    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, noneSeen);
-    expect(p.points).toBe(282);
-    expect(p.pendingPoints).toBe(47);
-    expect(p.unlockedCount).toBe(3);
-    expect(p.pendingCatUnlocks).toEqual([50, 150]);
-  });
-
-  it("only reports thresholds crossed since last celebrated points", () => {
-    const seen = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 50 };
-    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", thresholds, seen);
-    expect(p.pendingCatUnlocks).toEqual([150]);
-  });
-
-  it("does not bank today, so a fresh install has nothing to unlock and nothing to re-lock", () => {
-    // Today alone: no completed day, so 0 banked. Nothing scrolled yet means a
-    // full day is pending. Only the free cat is open and no card fires.
-    const fresh = computeProgress([day("2026-07-07", 0, 30)], 30, "2026-07-07", thresholds, noneSeen);
-    expect(fresh.points).toBe(0);
-    expect(fresh.pendingPoints).toBe(MAX_POINTS_PER_DAY);
-    expect(fresh.unlockedCount).toBe(1);
-    expect(fresh.pendingCatUnlocks).toEqual([]);
-    // Scrolling most of today drains the pending value but touches nothing banked.
-    const slipped = computeProgress([day("2026-07-07", mins(29), 30)], 30, "2026-07-07", thresholds, noneSeen);
-    expect(slipped.points).toBe(0);
-    expect(slipped.pendingPoints).toBe(2);
-    expect(slipped.unlockedCount).toBe(1);
-  });
-
-  it("still honours a celebrated high-water mark from the old rule", () => {
-    const earned = { lastCelebratedStreakMilestone: 0, lastPointsCelebrated: 150 };
-    const p = computeProgress([day("2026-07-07", mins(29), 30)], 30, "2026-07-07", thresholds, earned);
-    expect(p.unlockedCount).toBe(3);
-    expect(p.pendingCatUnlocks).toEqual([]);
-  });
-});
-
-describe("bankedPoints / pendingPoints", () => {
-  it("banks only days before today", () => {
-    const h = [day("2026-07-05", 0, 30), day("2026-07-06", mins(15), 30), day("2026-07-07", 0, 30)];
-    expect(bankedPoints(h, "2026-07-07", 30)).toBe(50 + 25);
-    expect(pendingPoints(h, "2026-07-07", 30)).toBe(50);
-  });
-  it("pends the full day when today has no record yet", () => {
-    expect(pendingPoints([day("2026-07-06", 0, 30)], "2026-07-07", 30)).toBe(MAX_POINTS_PER_DAY);
+  it("banks completed days as coins and keeps today pending", () => {
+    // 7 days at 60s (1 minute): 49 coins each. Today (the 7th) is not banked.
+    const p = computeProgress(clean7(15, 1), 15, "2026-07-07", noneSeen);
+    expect(p.coins).toBe(6 * 49);
+    expect(p.pendingCoins).toBe(49);
   });
 });

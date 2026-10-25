@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { BottomSheet } from "./ui/bottom-sheet";
 import { HAIRLINE, SHEET_BG } from "./kit";
+import { SheetGlow } from "./AmbientField";
 
 /**
  * The one small bottom sheet, on PanelUI's BottomSheet. Slides up over a
@@ -31,9 +32,11 @@ export function Sheet({
       <BottomSheet.Content
         dismissible={dismissOnBackdrop}
         showClose={false}
-        className="rounded-t-[28px] px-6 pb-6"
+        className="overflow-hidden rounded-t-[28px] px-6 pb-6"
         style={{ backgroundColor: SHEET_BG, borderTopWidth: 1, borderTopColor: HAIRLINE }}
       >
+        {/* The same glass as the tall sheets: the day's glow behind the content. */}
+        <SheetGlow />
         {children}
       </BottomSheet.Content>
     </BottomSheet>

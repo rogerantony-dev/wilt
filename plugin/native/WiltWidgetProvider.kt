@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.widget.RemoteViews
+import expo.modules.wiltnative.Closet
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -77,9 +78,10 @@ class WiltWidgetProvider : AppWidgetProvider() {
             views.setTextColor(R.id.widget_limit, color)
 
             // The cat rots with the minutes: fresh, wilting, mouldy, rotting,
-            // nearly gone, and a skull once the limit is hit. Same bands as the pill.
-            val face = CatDecay.drawable(minutes, budget)
-            views.setImageViewResource(R.id.widget_cat, face)
+            // nearly gone, and a skull once the limit is hit. Same bands and the
+            // same worn top as the pill, flattened to one bitmap for RemoteViews.
+            val top = Closet.outfit(prefs)["top"]
+            views.setImageViewBitmap(R.id.widget_cat, CatFigureLayers.pillBitmap(context, CatDecay.stage(minutes, budget), top))
 
             views.setTextViewText(R.id.widget_reels, "$reels${plural(reels, " reel", " reels")}")
             views.setTextViewText(R.id.widget_shorts, "$shorts${plural(shorts, " short", " shorts")}")

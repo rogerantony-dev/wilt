@@ -16,7 +16,7 @@
 <p align="center">
   <img src="docs/screenshots/guilt-counting.png" width="255" alt="Home screen showing 0 minutes wasted today and 15 minutes left on the clock">
   <img src="docs/screenshots/guilt-limit-reached.png" width="255" alt="Home screen after the limit is reached, reading walled off till midnight">
-  <img src="docs/screenshots/block-cover.png" width="255" alt="Instagram feed blanked out and replaced with a cat photo">
+  <img src="docs/screenshots/block-cover.png" width="255" alt="Instagram feed blanked out and replaced with the wilting cat">
 </p>
 
 It times how long you spend in those two feeds, shows the number *while you are in them*, and blocks the feeds once you pass a daily limit you set. Android only. No account, and nothing leaves your device.
@@ -25,7 +25,7 @@ It times how long you spend in those two feeds, shows the number *while you are 
 
 Your phone's built-in screen-time report tells you what you did yesterday. That is too late to act on, and it measures the wrong thing: "3 hours on Instagram" cannot tell the difference between messaging a friend and thumbing through Reels at 1am.
 
-Wilt measures only the short-form feeds. It keeps a live timer on screen while you scroll, interrupts you when you are spiraling, and takes the feeds away entirely once you have spent your daily allowance. Days you stay under the limit earn points, and points unlock cat pictures, so there is something on the other side of stopping.
+Wilt measures only the short-form feeds. It keeps a live timer on screen while you scroll, interrupts you when you are spiraling, and takes the feeds away entirely once you have spent your daily allowance. Every day pays coins, more the less you scroll, and coins buy clothes for the cat, so there is something on the other side of stopping.
 
 ## Two modes
 
@@ -51,15 +51,13 @@ Separately, a card interrupts when the timing is bad rather than when the budget
 
 ## When it blocks
 
-The inline feed reels get blanked and replaced with a cat, and the overlay eats touches, so scrolling through it does nothing. The cat and the line rotate each time the block reappears, drawn only from the cats you have already unlocked.
+The inline feed reels get blanked and replaced with the cat, wilted as far as your day has gone and wearing whatever you dressed it in. The overlay eats touches, so scrolling through it does nothing. The line on the cover changes each time the block reappears.
 
-## Cats, not reels
+## Coins and the Closet
 
-Each day pays out the share of your limit you did not spend. Points unlock thirteen cats, frequent at first and further apart later. The first is free, so the gallery is never empty.
+Each finished day pays up to 50 coins, on minutes alone: 50 for a day with no scrolling, a little over one fewer per minute after that, and nothing from 45 minutes on. Your limit plays no part, so a 5-minute limit earns the same as a 60-minute one for the same restraint. Today's coins show on the home tile as `+N` and shrink as you scroll; they bank at midnight. A day Wilt was switched off pays nothing.
 
-<p><img src="docs/screenshots/cat-gallery.png" width="255" alt="Cat gallery showing unlocked cats and locked tiles with their point thresholds"></p>
-
-Unlocking only moves one way. Today's points shrink in real time as you scroll, so the gallery is gated on your high-water mark, and a cat you earned cannot re-lock at four in the afternoon.
+Spend them in the Closet on clothes for the cat: something for its head, its body and its legs. A few pieces are free, the rest cost from 100 to 900 coins, and spent coins stay spent. The cat wears its outfit everywhere it appears: home, the pill, the block screen and the nudge. It still wilts in it.
 
 ## History and widget
 
@@ -141,7 +139,7 @@ Drop the `-PreactNativeArchitectures` flag to build all four ABIs, which roughly
 npm test
 ```
 
-Jest covers the pure logic, which is deliberately kept free of React and native calls: points and streaks (`components/progress.ts`), history bucketing (`history.ts`), nudge selection (`nudges.ts`), and the clock's transform matrices (`catmatrix.ts`).
+Jest covers the pure logic, which is deliberately kept free of React and native calls: coins and streaks (`components/progress.ts`), the Closet's catalogue and prices (`closet.ts`), the cat's figure geometry (`catshapes.ts`), history bucketing (`history.ts`), nudge selection (`nudges.ts`), and the clock's transform matrices (`catmatrix.ts`).
 
 ### Changing the native side
 
@@ -151,13 +149,13 @@ Jest covers the pure logic, which is deliberately kept free of React and native 
 |---|---|
 | `plugin/native/ReelAccessibilityService.kt` | Detection, timing, blocking, the pill, the cover, the nudges |
 | `plugin/native/WiltWidgetProvider.kt` | The home-screen widget |
-| `plugin/native/res/` | Widget layouts, cat drawables |
+| `plugin/native/res/` | Widget layouts, the dressed cat's PNG layers (`drawable-nodpi/`) |
 | `plugin/withReelCounter.js` | Config plugin that copies all of the above into `android/` at prebuild, and patches the manifest |
 | `modules/wiltnative/` | Expo module exposing the service's state to JS |
 
 Edit those, re-run `npx expo prebuild --platform android`, rebuild.
 
-To add a cat: append to `CATS` in `components/cats.ts`, drop the image in `assets/cats/`, drop a copy in `plugin/native/res/drawable/` as `wilt_cat_<n>.png`, and bump `catCount` in the service. The list order is the unlock order, and the native side indexes by position, so the two must stay aligned.
+To add a Closet item: add it to `ITEMS` in `components/closet.ts` and, with the same id and price, to `PRICES` in `modules/wiltnative/android/src/main/java/expo/modules/wiltnative/Closet.kt`. Draw it in `design-previews/cat-figure.js`, port the drawing to `components/catshapes.ts`, add its id to the slot's list in `scripts/render-cat-layers.sh`, and run `bash scripts/render-cat-layers.sh` to render the layers the service draws.
 
 ### Gotchas
 

@@ -80,8 +80,8 @@ Answers consistent with the code as of this commit.
 | Is all user data encrypted in transit? | N/A, no data is transmitted |
 | Do you provide a way for users to request data deletion? | Uninstalling removes all data; no server-side data exists |
 
-Notes if challenged: the app stores usage counts, limits, streaks, and unlocked
-images in private app storage. This is not "collection" under Play's definition
+Notes if challenged: the app stores usage counts, limits, streaks, coins, and the
+clothes bought for the cat in private app storage. This is not "collection" under Play's definition
 because it is never transmitted off the device. Automatic Android backup is
 disabled (`android:allowBackup="false"`), so app data is not copied to Google
 Drive either.
@@ -98,7 +98,7 @@ app does, not what it is incapable of.
 - No violence, sexual content, profanity, gambling, or drug references
 - No user-generated content, no social features, no chat
 - Does not share location
-- The app displays cat photographs bundled in the APK
+- The app draws a cartoon cat and its clothes; no photographs
 
 Expected outcome: rated for everyone.
 
@@ -183,7 +183,7 @@ Suggested upload order, since the first two or three carry the listing:
 
 1. `1-dashboard.png` — time spent, budget left, the mode switch
 2. `4-block-mode.png` — the other mode
-3. `2-cats.png` — the reward, and the most visually distinctive screen
+3. `2-cats.png` — the Closet: dress the cat with coins earned by scrolling less, the most visually distinctive screen (NOTE: this screenshot still shows the old cat gallery and needs recapturing)
 4. `3-history.png` — the pattern over days
 5. `7-limit-picker.png` — that the limit is the user's choice
 

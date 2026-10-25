@@ -1,4 +1,5 @@
-import { StyleSheet, useWindowDimensions } from "react-native";
+import { createContext, useContext } from "react";
+import { Image, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, { Easing, useAnimatedProps, useSharedValue, withTiming } from "react-native-reanimated";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 
@@ -44,5 +45,34 @@ export function AmbientField({ color, level }: { color: string; level: number })
       </Defs>
       <AnimatedEllipse cx={width / 2} cy={height * 1.04} rx={width * 1.1} animatedProps={blobProps} fill="url(#ambient)" />
     </Svg>
+  );
+}
+
+/**
+ * The day's accent: green, amber or red by how the budget stands, green in
+ * Block. Set once on the home screen (above PanelUIProvider, so it reaches
+ * the portal every sheet renders into) and read by every glowing surface.
+ */
+export const DayAccent = createContext("#38C786");
+
+const GLOW = require("../assets/glow.png");
+
+/**
+ * The glass sheets' backdrop: the same low field as the home screen's, in the
+ * day's accent, but drawn as one pre-rendered image the system tints. An SVG
+ * gradient here made every sheet stutter as it slid open or shut; a tinted
+ * bitmap costs next to nothing to draw. The box below is AmbientField's
+ * ellipse at level 0.25: centre x 50%, y 104%, radii 110% x 59.5%.
+ */
+export function SheetGlow() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Image
+        source={GLOW}
+        tintColor={useContext(DayAccent)}
+        resizeMode="stretch"
+        style={{ position: "absolute", left: "-60%", width: "220%", top: "44.5%", height: "119%", opacity: 0.495 }}
+      />
+    </View>
   );
 }

@@ -4,10 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.animation.ValueAnimator
 import android.content.Context
-import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
@@ -24,19 +22,21 @@ import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import expo.modules.wiltnative.Closet
+import expo.modules.wiltnative.Surfaces
 import org.json.JSONObject
 
 /**
@@ -77,7 +77,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private var windowManager: WindowManager? = null
     private var pill: View? = null
-    private var catView: ImageView? = null
+    private var catView: FrameLayout? = null
     private var pillLabel: TextView? = null
     private var overlayShown = false
 
@@ -93,7 +93,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private val nudgeHardKeys = setOf("latenight", "morning", "workhours")
 
     // Block mode: when you're on the Instagram home feed, this cover blanks the whole
-    // feed behind a cat photo + a cheeky line and EATS touches over it, so the feed
+    // feed behind the dressed cat + a cheeky line and EATS touches over it, so the feed
     // can't be scrolled at all. The bottom nav is left uncovered so you can still
     // leave. Distinct from the pill so the two never fight.
     //
@@ -107,11 +107,11 @@ class ReelAccessibilityService : AccessibilityService() {
     // transparent one. removeCatCover() is therefore called on every leave-app /
     // screen-off / block-mode-off path, and the layers rebuild lazily on next show.
     private val catLayers = mutableListOf<View>()
-    private var catImageView: ImageView? = null
+    private var catFigureView: FrameLayout? = null
     private var catTextView: TextView? = null
     private var catCoverVisible = false
     private val catCoverShown get() = catCoverVisible
-    private var blockShowSeq = 0 // rotates the cat/line each time the block re-appears
+    private var blockShowSeq = 0 // rotates the line each time the block re-appears
     private var lastCoverBounds: Rect? = null
     private val catCoverLayerCount = 3
 
@@ -154,8 +154,8 @@ class ReelAccessibilityService : AccessibilityService() {
         }
     }
     private val coverLines = listOf(
-        "Feed's closed.\nHere's a cat.",
-        "No scrolling today.\nCat instead.",
+        "Feed's closed.\nYour cat took the hit.",
+        "No scrolling today.\nSay hi to your cat.",
         "Nope.\nGo do something else.",
         "This is better for you,\npromise."
     )
@@ -227,10 +227,42 @@ class ReelAccessibilityService : AccessibilityService() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         // Heartbeat so the app can confirm the service is actually running.
         prefs.edit().putLong("lastConnectedAt", System.currentTimeMillis()).apply()
+        // Archive a day that ended while we were off (prefs only, safe here).
+        ensureToday()
         // Being connected means any payment pause is over (the user, or the
         // auto-resume alarm, turned us back on).
         PaymentPause.clearPaused(this)
+        pausing = false
         setTrackedEvents(false)
+        watchInstalls()
+        // Work out the payment apps now so the first window switch already
+        // has the full list rather than only the known one.
+        PaymentPause.detectInBackground(this)
+    }
+
+    // An app installed or removed may be a payment app; detect again lazily.
+    private var installsReceiver: android.content.BroadcastReceiver? = null
+
+    private fun watchInstalls() {
+        if (installsReceiver != null) return
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: android.content.Intent?) {
+                PaymentPause.forget(this@ReelAccessibilityService)
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
+        runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(receiver, filter)
+            }
+            installsReceiver = receiver
+        }.onFailure { Log.w(TAG, "could not watch installs", it) }
     }
 
     // The config XML deliberately has no android:packageNames filter: to notice a
@@ -262,58 +294,63 @@ class ReelAccessibilityService : AccessibilityService() {
         Log.d(TAG, "tracked events ${if (on) "on" else "off"}")
     }
 
-    /** What the focused window resolves to; [hiddenTitle] is set when its content is withheld from us. */
-    private class ActiveWindow(val pkg: String?, val hiddenTitle: String?)
-
     /**
-     * The window that currently holds focus. rootInActiveWindow can be null
-     * mid-transition, or hidden on purpose, so fall back to the windows list.
+     * The package of the window that currently holds focus. rootInActiveWindow
+     * can be null mid-transition, or hidden on purpose, so fall back to the
+     * windows list.
      */
-    private fun activeWindow(): ActiveWindow {
-        rootInActiveWindow?.packageName?.let { return ActiveWindow(it.toString(), null) }
+    private fun activeWindowPackage(): String? {
+        rootInActiveWindow?.packageName?.let { return it.toString() }
         val win = runCatching { windows }.getOrNull()
             ?.let { list -> list.firstOrNull { it.isActive } ?: list.firstOrNull { it.isFocused } }
-            ?: return ActiveWindow(null, null)
-        win.root?.packageName?.let { return ActiveWindow(it.toString(), null) }
+            ?: return null
+        win.root?.packageName?.let { return it.toString() }
         // The root is hidden from us: Android 14 lets an app mark its content
         // accessibilityDataSensitive, which banking apps do, and the system then
         // shows a non-accessibility-tool service no nodes at all. The window
-        // title is still reported and is the app's label.
+        // title is still reported and is the app's label, so a payment app can
+        // be recognised by it. Any other hidden window (a permission dialog, a
+        // password manager) stays unknown and is left alone.
         val title = win.title?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-        val isApp = win.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_APPLICATION
         Log.d(TAG, "active window root hidden; type=${win.type} title='$title'")
-        return ActiveWindow(PaymentPause.packageForTitle(title), if (isApp) title else null)
+        return PaymentPause.packageForTitle(this, title)
     }
 
     /**
      * Decide what a window switch means. The active window can be unresolvable
      * for a few hundred ms while the system finishes the switch, so an
      * undecidable switch is looked at again shortly rather than judged from the
-     * event alone. A hidden app window pauses only once [confirmed] by that
-     * second look, so a transient blank during a switch never trips it.
+     * event alone.
      */
-    private fun handleWindowSwitch(
-        eventPkg: String?,
-        source: String,
-        retriesLeft: Int,
-        confirmed: Boolean = false,
-    ) {
-        val active = activeWindow()
-        val activePkg = active.pkg
-        Log.d(TAG, "$source: event=$eventPkg active=$activePkg hidden=${active.hiddenTitle}")
-        if (activePkg == instagramPackage || activePkg == youtubePackage) return
+    private fun handleWindowSwitch(eventPkg: String?, source: String, retriesLeft: Int) {
+        // Roll the day over here too, not only from Instagram/YouTube events:
+        // a day they are never opened must still be archived (0 seconds, 50 coins).
+        ensureToday()
+        val activePkg = activeWindowPackage()
+        Log.d(TAG, "$source: event=$eventPkg active=$activePkg")
+        if (activePkg == instagramPackage || activePkg == youtubePackage) {
+            lastTrackedPkg = activePkg
+            return
+        }
         val paymentPkg = when {
-            PaymentPause.isPaymentApp(activePkg) -> activePkg
-            PaymentPause.isPaymentApp(eventPkg) -> eventPkg
+            PaymentPause.isPaymentApp(this, activePkg) -> activePkg
+            PaymentPause.isPaymentApp(this, eventPkg) -> eventPkg
             else -> null
         }
         if (paymentPkg != null) { pauseForPaymentApp(paymentPkg); return }
+        if (activePkg != null && Surfaces.isCustomGuarded(prefs, activePkg)) { onCustomApp(activePkg); return }
+        // An added app's window event can arrive before the system has made it
+        // the active window. It sends no stream of events to catch it later
+        // (unlike Instagram/YouTube), so look again once the switch settles.
+        if (eventPkg != null && eventPkg != activePkg && retriesLeft > 0 &&
+            Surfaces.isCustomGuarded(prefs, eventPkg)
+        ) {
+            mainHandler.removeCallbacks(settleCheck)
+            settleRetries = retriesLeft - 1
+            mainHandler.postDelayed(settleCheck, 300L)
+            return
+        }
         if (activePkg == null) {
-            val hidden = active.hiddenTitle
-            if (hidden != null && confirmed) {
-                pauseForPaymentApp(PaymentPause.HIDDEN_WINDOW, label = hidden)
-                return
-            }
             if (retriesLeft > 0) {
                 mainHandler.removeCallbacks(settleCheck)
                 settleRetries = retriesLeft - 1
@@ -327,7 +364,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     private val settleDelayMs = 600L
     private var settleRetries = 0
-    private val settleCheck = Runnable { handleWindowSwitch(null, "settle", settleRetries, confirmed = true) }
+    private val settleCheck = Runnable { handleWindowSwitch(null, "settle", settleRetries) }
 
     /** Tear down every overlay and reset per-app state: we are no longer in IG/YT. */
     private fun onLeftTrackedApp() {
@@ -345,21 +382,30 @@ class ReelAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * A payment app is up, or an app that hides its screen from accessibility
-     * services. Paytm and friends refuse to proceed while this service is ENABLED (not merely while an overlay exists; see [PaymentPause]), so the
+     * A payment app is up. Paytm and friends refuse to proceed while this service is ENABLED (not merely while an overlay exists; see [PaymentPause]), so the
      * only fix is to switch ourselves off. disableSelf() is one-way: the service
      * stays off until re-enabled from Settings or, with WRITE_SECURE_SETTINGS
      * granted over adb, by the app itself. onUnbind() follows and clears overlays.
      */
-    private fun pauseForPaymentApp(pkg: String, label: String = PaymentPause.label(pkg)) {
+    private var pausing = false
+
+    private fun pauseForPaymentApp(pkg: String, label: String = PaymentPause.label(this, pkg)) {
+        if (pausing) return
+        pausing = true
+        mainHandler.removeCallbacks(settleCheck)
         Log.i(TAG, "payment app $pkg ($label) in front; disabling self")
         onLeftTrackedApp()
         PaymentPause.markPaused(this, pkg, label)
         runCatching { disableSelf() }
+        // Normally the system unbinds us within a beat. If it did not, listen again.
+        mainHandler.postDelayed({ pausing = false }, 5000L)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        // Switching off: disableSelf() takes a moment, and the events still
+        // arriving meanwhile would only pause again.
+        if (pausing) return
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
             // Only a window switch can mean we left a tracked app; anything else
@@ -379,6 +425,7 @@ class ReelAccessibilityService : AccessibilityService() {
         }
         mainHandler.removeCallbacks(settleCheck)
         setTrackedEvents(true)
+        lastTrackedPkg = pkg
 
         // A playing reel floods content-changed events; cap the expensive node scan
         // to ~5Hz. The self-pollers (cover/pill) still catch anything between events.
@@ -399,8 +446,20 @@ class ReelAccessibilityService : AccessibilityService() {
                 if (maybeShowLimitAlert()) return
                 if (nudgeModalShown) return
             }
+            // Every part of this app guarded: keep out of the app entirely.
+            if (appGuarded(pkg)) { bounceHome(pkg); return }
             if (pkg == youtubePackage) {
-                handleBlockFullScreen(detectShort(root) != null)
+                val onShort = guarded(Surfaces.YT_SHORTS) && detectShort(root) != null
+                val videoGuarded = guarded(Surfaces.YT_VIDEO)
+                val onVideo = !onShort && videoGuarded && onWatchVideo(root)
+                if (onShort || onVideo) logSurface(if (onShort) "blocked ytShorts" else "blocked ytVideo")
+                // Back only shrinks a video into the miniplayer, where it keeps
+                // playing. So pause it first (a media key reaches whatever is
+                // playing, whatever YouTube's ids are), then bounce, and close
+                // the miniplayer whenever its button can be found.
+                if (onVideo && backDue()) pauseMedia()
+                handleBlockFullScreen(onShort || onVideo)
+                if (videoGuarded && !onVideo) closeMiniPlayer(root)
             } else {
                 handleBlockInstagram()
             }
@@ -411,8 +470,13 @@ class ReelAccessibilityService : AccessibilityService() {
         // mode uses STRICT full-screen detection so it never bounces you out of the
         // feed; guilt uses BROADER detection that also counts reels/shorts watched
         // inline in the feed — there we only measure, so anything you watch counts.
+        // Unguarded surfaces are skipped, so they neither count nor show the pill.
         val counter = if (pkg == youtubePackage) shortCounter else reelCounter
-        val hit = if (pkg == youtubePackage) detectShortGuilt(root) else detectReelGuilt(root)
+        val hit = if (pkg == youtubePackage) {
+            if (guarded(Surfaces.YT_SHORTS)) detectShortGuilt(root) else null
+        } else {
+            detectReelGuilt(root)
+        }
 
         if (debug) {
             mainHandler.removeCallbacks(hideRunnable)
@@ -423,7 +487,14 @@ class ReelAccessibilityService : AccessibilityService() {
         // Guilt mode: show + accrue only when actually viewing a reel ON-SCREEN (so the
         // pill doesn't latch onto an off-screen Reels-tab pager neighbour). Counting
         // still keys off the broader detector's identity.
-        val onReel = if (pkg == youtubePackage) hit != null else onReelSurface(root)
+        val surface = when {
+            // The whole app is guarded, so every screen of it counts.
+            appGuarded(pkg) -> if (pkg == youtubePackage) "ytApp" else "igApp"
+            pkg == youtubePackage -> if (hit != null) Surfaces.YT_SHORTS else ytVideoSurface(root)
+            else -> igSurface(root)
+        }
+        logSurface(surface ?: "none ($pkg)", root.takeIf { surface == null })
+        val onReel = surface != null
         if (onReel) {
             val justEntered = !wasOnReel
             wasOnReel = true
@@ -461,40 +532,112 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!overlayShown) return false
         val root = rootInActiveWindow ?: return true // transient; keep checking
         val pkg = root.packageName?.toString()
-        if (pkg != instagramPackage && pkg != youtubePackage) {
+        if (pkg != instagramPackage && pkg != youtubePackage && !Surfaces.isCustomGuarded(prefs, pkg)) {
             stopReelTimer(); hideOverlay(); return false // left the app
         }
         if (isBlockingNow()) {
+            // Crossed the limit while in an added app: out of it now.
+            if (pkg != null && pkg != instagramPackage && pkg != youtubePackage) {
+                stopReelTimer(); hideOverlay(); bounceHome(pkg); return false
+            }
             // Blocking now: on Instagram the cat cover is the feedback, so pull the
             // scroll pill so it doesn't linger on top of the blocked feed. (YouTube
             // shows its own "Blocked" pill via renderBlocked from the event path.)
             if (pkg == instagramPackage) { stopReelTimer(); hideOverlay() }
             return false
         }
-        val onReel = if (pkg == youtubePackage) detectShortGuilt(root) != null else onReelSurface(root)
+        val onReel = when {
+            appGuarded(pkg) -> true
+            pkg == youtubePackage ->
+                (guarded(Surfaces.YT_SHORTS) && detectShortGuilt(root) != null) || ytVideoSurface(root) != null
+            else -> igSurface(root) != null
+        }
         if (onReel) return true
         stopReelTimer(); hideOverlay(); return false // off a reel → gone
     }
 
     /**
-     * Fast, on-screen-scoped "am I actually viewing a reel right now?" — used by the pill
-     * ticker (so it can poll quickly) and to gate the pill on/off. Two direct view-id
-     * lookups, no tree walk:
-     *  - the Reels player (`clips_viewer_view_pager`) ON-SCREEN (covers the window), which
-     *    rejects the Reels tab when it's parked off-screen as a bottom-nav pager neighbour
-     *    (that off-screen reel is exactly what kept the pill stuck on Profile/Search), or
-     *  - a large, on-screen inline feed video.
+     * Which guarded Instagram surface is on screen right now, or null. Used by the
+     * guilt event path and the pill ticker, so it leans on direct view-id lookups
+     * rather than a tree walk; only the DM check walks, and only when DMs are guarded.
+     *  - Stories: the story player (`reel_viewer_root`) is up.
+     *  - Reels: the Reels player (`clips_viewer_view_pager`) ON-SCREEN, covering the
+     *    window, which rejects the Reels tab parked off-screen as a bottom-nav pager
+     *    neighbour (that off-screen reel once kept the pill stuck on Profile/Search).
+     *  - Feed: a large, on-screen inline video.
+     *  - DMs: see [onDms].
+     * A surface that is up but unguarded returns null rather than falling through,
+     * so a reel's own video never reads as a feed video.
      */
-    private fun onReelSurface(root: AccessibilityNodeInfo): Boolean {
+    private fun igSurface(root: AccessibilityNodeInfo): String? {
+        val win = Rect().also { root.getBoundsInScreen(it) }
+        if (win.width() <= 0) return null
+        if (anyVisible(root, "$instagramPackage:id/reel_viewer_root")) {
+            return Surfaces.IG_STORIES.takeIf { guarded(it) }
+        }
+        if (isFullScreenReel(root, win)) return Surfaces.IG_REELS.takeIf { guarded(it) }
+        if (guarded(Surfaces.IG_FEED)) {
+            runCatching {
+                root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/video_container")
+            }.getOrNull()?.forEach {
+                if (it.isVisibleToUser) {
+                    val b = Rect().also { r -> it.getBoundsInScreen(r) }
+                    if (onScreenLargeVideo(b, win)) return Surfaces.IG_FEED
+                }
+            }
+        }
+        if (guarded(Surfaces.IG_DMS) && onDms(root)) return Surfaces.IG_DMS
+        return null
+    }
+
+    // Id fragments of the DM inbox and a DM thread. Unverified against every IG
+    // build: if DMs go undetected, `adb logcat -s Wilt` prints the ids seen on
+    // the screen ("surface none ... ids=") to add here.
+    private val dmIdHints = listOf("thread_composer", "direct_inbox", "inbox_refreshable", "direct_thread")
+
+    /**
+     * In Instagram's messages: the bottom-nav Messages tab is selected (newer
+     * builds), or the inbox or a thread is open. Never true on the feed, whose
+     * app bar carries a DM shortcut of its own.
+     */
+    private fun onDms(root: AccessibilityNodeInfo): Boolean {
+        runCatching {
+            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/direct_tab")
+        }.getOrNull()?.forEach { if (it.isVisibleToUser && it.isSelected) return true }
+        var hint = false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 3000) {
+            val node = queue.removeFirst()
+            visited++
+            val id = node.viewIdResourceName?.substringAfterLast('/')
+            if (id != null && node.isVisibleToUser) {
+                if (id.startsWith("row_feed")) return false
+                if (dmIdHints.any { id.contains(it) }) hint = true
+            }
+            for (i in 0 until node.childCount) {
+                node.getChild(i)?.let { queue.add(it) }
+            }
+        }
+        return hint
+    }
+
+    /** [Surfaces.YT_VIDEO] while a regular video is up in the full player and guarded, else null. */
+    private fun ytVideoSurface(root: AccessibilityNodeInfo): String? =
+        Surfaces.YT_VIDEO.takeIf { guarded(it) && onWatchVideo(root) }
+
+    /**
+     * A regular YouTube video in the watch player, expanded or full screen. The
+     * player (`watch_player`) must span the window's width, which rejects the
+     * miniplayer it shrinks into, and the Shorts player must not be up.
+     */
+    private fun onWatchVideo(root: AccessibilityNodeInfo): Boolean {
         val win = Rect().also { root.getBoundsInScreen(it) }
         if (win.width() <= 0) return false
+        if (anyVisible(root, "$youtubePackage:id/reel_recycler")) return false
         runCatching {
-            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/clips_viewer_view_pager")
-        }.getOrNull()?.forEach {
-            if (it.isVisibleToUser && coversScreen(root, it)) return true
-        }
-        runCatching {
-            root.findAccessibilityNodeInfosByViewId("$instagramPackage:id/video_container")
+            root.findAccessibilityNodeInfosByViewId("$youtubePackage:id/watch_player")
         }.getOrNull()?.forEach {
             if (it.isVisibleToUser) {
                 val b = Rect().also { r -> it.getBoundsInScreen(r) }
@@ -504,7 +647,95 @@ class ReelAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /** Tap the miniplayer's close button if one is showing, so a blocked video stops playing. */
+    private fun closeMiniPlayer(root: AccessibilityNodeInfo) {
+        val byId = runCatching {
+            root.findAccessibilityNodeInfosByViewId("$youtubePackage:id/floaty_close_button")
+        }.getOrNull().orEmpty()
+        val byLabel = runCatching {
+            root.findAccessibilityNodeInfosByText("Close miniplayer")
+        }.getOrNull().orEmpty()
+        val button = (byId + byLabel).firstOrNull { it.isVisibleToUser } ?: return
+        if (runCatching { button.performAction(AccessibilityNodeInfo.ACTION_CLICK) }.getOrDefault(false)) {
+            Log.d(TAG, "closed the YouTube miniplayer")
+        }
+    }
+
+    private fun anyVisible(root: AccessibilityNodeInfo, viewId: String): Boolean =
+        runCatching { root.findAccessibilityNodeInfosByViewId(viewId) }.getOrNull()
+            ?.any { it.isVisibleToUser } == true
+
+    // Last surface written to logcat, so the log shows changes rather than every event.
+    private var lastSurfaceLog: String? = null
+
+    /**
+     * Log a change of surface (a guarded one, a block, or none). On "none", the
+     * screen's first view ids are included: that is how an undetected surface
+     * (a new IG build's DM screen, say) gets tuned on a real phone.
+     */
+    private fun logSurface(label: String, root: AccessibilityNodeInfo? = null) {
+        if (label == lastSurfaceLog) return
+        lastSurfaceLog = label
+        val ids = root?.let { " ids=" + collectViewIdFragments(it, 15).joinToString(",") } ?: ""
+        Log.d(TAG, "surface $label$ids")
+    }
+
     private fun currentMode(): String = prefs.getString("mode", "guilt") ?: "guilt"
+
+    /** Is this part of IG/YT guarded (counted in Guilt, blocked in Block)? See [Surfaces]. */
+    private fun guarded(key: String): Boolean = Surfaces.isGuarded(prefs, key)
+
+    /** Every part of [pkg] is guarded, so the whole app is. */
+    private fun appGuarded(pkg: String?): Boolean = when (pkg) {
+        instagramPackage -> Surfaces.isAppGuarded(prefs, Surfaces.INSTAGRAM)
+        youtubePackage -> Surfaces.isAppGuarded(prefs, Surfaces.YOUTUBE)
+        else -> Surfaces.isCustomGuarded(prefs, pkg)
+    }
+
+    /**
+     * An app the user added to the Apps sheet is in front. It is guarded whole:
+     * Block keeps you out, Guilt counts all of it with the pill up, like a reel.
+     * Driven by window-switch events alone (plus the pill ticker), so an added
+     * app never turns on the content-event stream Instagram/YouTube need.
+     */
+    private fun onCustomApp(pkg: String) {
+        mainHandler.removeCallbacks(settleCheck)
+        lastTrackedPkg = pkg
+        if (isBlockingNow()) { bounceHome(pkg); return }
+        wasOnReel = true
+        startReelTimer()
+        render()
+        startPillTicker()
+    }
+
+    /** An app's name for copy: "Instagram", "YouTube", or an added app's label. */
+    private fun appLabel(pkg: String?): String = when (pkg) {
+        instagramPackage, null -> "Instagram"
+        youtubePackage -> "YouTube"
+        else -> runCatching {
+            packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+        }.getOrDefault("this app")
+    }
+
+    private var lastHomeAt = 0L
+
+    /**
+     * Keep out of a wholly guarded app: straight to the home screen, with a
+     * short system note rather than an overlay (nothing of ours may stay drawn
+     * outside Instagram/YouTube). Throttled so one launch bounces once.
+     */
+    private fun bounceHome(pkg: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastHomeAt < 1500L) return
+        lastHomeAt = now
+        logSurface("blocked whole $pkg")
+        hideOverlay()
+        removeCatCover()
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        val app = appLabel(pkg)
+        val note = if (currentMode() == "block") "$app is blocked." else "$app is walled off till midnight."
+        runCatching { Toast.makeText(this, note, Toast.LENGTH_SHORT).show() }
+    }
 
     // --- Auto-block at the daily limit ----------------------------------------
     /** Extra minutes granted today via the "1 more minute" button (on the dashboard). */
@@ -520,13 +751,32 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun isBlockingNow(): Boolean = currentMode() == "block" || autoBlocking()
 
     /** Throttled Back-press used to bounce the user out of a full-screen reel/short. */
+    /** A Back bounce would fire now (not throttled). */
+    private fun backDue(): Boolean = System.currentTimeMillis() - lastBackAt > 1200L
+
+    /** Pause whatever is playing, via the media-session pause key. */
+    private fun pauseMedia() {
+        val audio = getSystemService(AUDIO_SERVICE) as? android.media.AudioManager ?: return
+        val t = android.os.SystemClock.uptimeMillis()
+        runCatching {
+            audio.dispatchMediaKeyEvent(android.view.KeyEvent(t, t, android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0))
+            audio.dispatchMediaKeyEvent(android.view.KeyEvent(t, t, android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE, 0))
+        }
+        Log.d(TAG, "paused media before bouncing a video")
+    }
+
     private fun backThrottled() {
         val now = System.currentTimeMillis()
         if (now - lastBackAt > 1200L) {
             lastBackAt = now
             performGlobalAction(GLOBAL_ACTION_BACK)
+            bounceFeltPending = true
         }
     }
+
+    // Set by a real Back bounce; the "Blocked" pill plays it once it is up, so
+    // each bounce is felt once however many events re-render the pill.
+    private var bounceFeltPending = false
 
     /**
      * Block mode for a full-screen-only platform (YouTube Shorts): Back-press on
@@ -591,16 +841,21 @@ class ReelAccessibilityService : AccessibilityService() {
         if (nudgeModalShown) return true // hold the cover while the limit alert is up
         val root = rootInActiveWindow ?: return true // transient; keep polling
         if (root.packageName?.toString() != instagramPackage) { removeCatCover(); return false }
+        if (appGuarded(instagramPackage)) { removeCatCover(); bounceHome(instagramPackage); return false }
 
         val win = Rect().also { root.getBoundsInScreen(it) }
 
-        // Full-screen Reels player → bounce out (and uncover). One direct lookup.
-        if (isFullScreenReel(root, win)) {
-            hideCatCover()
-            backThrottled()
-            renderBlocked()
-            mainHandler.removeCallbacks(hideRunnable)
-            mainHandler.postDelayed(hideRunnable, hideDelayMs)
+        // A guarded story or full-screen reel → bounce out (and uncover). An
+        // unguarded one is left alone. One direct lookup each.
+        val bounce = when {
+            anyVisible(root, "$instagramPackage:id/reel_viewer_root") ->
+                Surfaces.IG_STORIES.takeIf { guarded(it) } ?: run { hideCatCover(); return true }
+            isFullScreenReel(root, win) ->
+                Surfaces.IG_REELS.takeIf { guarded(it) } ?: run { hideCatCover(); return true }
+            else -> null
+        }
+        if (bounce != null) {
+            bounceOut(bounce)
             return true
         }
 
@@ -631,23 +886,41 @@ class ReelAccessibilityService : AccessibilityService() {
                 if (feedContentTop < 0 || b.top < feedContentTop) feedContentTop = b.top
             }
         }
-        if (!feedTabSelected && feedContentTop < 0) { hideCatCover(); hideOverlay(); return true }
+        if (!feedTabSelected && feedContentTop < 0) {
+            hideCatCover()
+            // Off the feed: the only other thing to catch here is a guarded DM screen.
+            if (guarded(Surfaces.IG_DMS) && onDms(root)) bounceOut(Surfaces.IG_DMS) else hideOverlay()
+            return true
+        }
+        if (!guarded(Surfaces.IG_FEED)) { hideCatCover(); return true }
 
-        // On the home feed → work out the block bounds (leaving the stories tray) and show.
+        // On the home feed → work out the block bounds and show. With stories
+        // guarded too, the cover takes the tray as well; otherwise the tray is left
+        // out so its circles stay tappable.
         val appBarBottom = win.top + dp(85)
-        val top = maxOf(appBarBottom, feedContentTop)
+        val top = if (guarded(Surfaces.IG_STORIES)) appBarBottom else maxOf(appBarBottom, feedContentTop)
         val bottom = if (navTop > win.top + win.height() / 2) navTop else win.bottom - dp(60)
         if (win.width() <= 0 || bottom <= top) { hideCatCover(); return true }
 
         hideOverlay() // the cover is the feedback here; don't also show the pill
         showBlockCover(Rect(win.left, top, win.right, bottom))
         // Guard the stories-tray strip against scroll while leaving the circles tappable.
-        if (feedContentTop > appBarBottom + dp(36)) {
+        if (!guarded(Surfaces.IG_STORIES) && feedContentTop > appBarBottom + dp(36)) {
             showTrayCover(Rect(win.left, appBarBottom, win.right, feedContentTop))
         } else {
             hideTrayCover()
         }
         return true
+    }
+
+    /** Back out of a blocked Instagram surface with a brief "Blocked" pill. */
+    private fun bounceOut(surface: String) {
+        logSurface("blocked $surface")
+        hideCatCover()
+        backThrottled()
+        renderBlocked()
+        mainHandler.removeCallbacks(hideRunnable)
+        mainHandler.postDelayed(hideRunnable, hideDelayMs)
     }
 
     /** Full-screen Reels player? One direct lookup of the clips pager, must cover the window. */
@@ -709,6 +982,8 @@ class ReelAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
+        installsReceiver?.let { runCatching { unregisterReceiver(it) } }
+        installsReceiver = null
         mainHandler.removeCallbacks(hideRunnable)
         stopCoverTicker()
         hideOverlay()
@@ -838,8 +1113,10 @@ class ReelAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Case 1: dedicated Reels player.
+        // Case 1: dedicated Reels player. Unguarded reels count nothing, and
+        // must not fall through to the feed-video case either.
         if (hasReelChrome) {
+            if (!guarded(Surfaces.IG_REELS)) return null
             val key = buildString {
                 author?.trim()?.let { append(it) }
                 append('|')
@@ -849,6 +1126,7 @@ class ReelAccessibilityService : AccessibilityService() {
         }
 
         // Case 2: inline home-feed video.
+        if (!guarded(Surfaces.IG_FEED)) return null
         return detectFeedVideo(root)?.let { Detected(it.key) }
     }
 
@@ -1073,17 +1351,16 @@ class ReelAccessibilityService : AccessibilityService() {
         val storedDate = prefs.getString("date", null)
         if (storedDate != today) {
             // Archive the finishing day into history before we zero it, so the
-            // graph keeps it. Only days with real activity are stored. Use the
-            // raw stored limit so a raise queued for the new day doesn't
-            // retroactively raise yesterday's.
+            // graph keeps it. Every day the service ran is stored, empty ones
+            // too: a day with no scrolling is the best day and pays 50 coins.
+            // Use the raw stored limit so a raise queued for the new day
+            // doesn't retroactively raise yesterday's.
             if (storedDate != null) {
                 val seconds = prefs.getInt("seconds", 0)
                 val count = prefs.getInt("count", 0)
                 val shorts = prefs.getInt("shortsCount", 0)
-                if (seconds > 0 || count > 0 || shorts > 0) {
-                    val finishingLimit = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
-                    archiveDay(storedDate, seconds, count, shorts, finishingLimit)
-                }
+                val finishingLimit = prefs.getInt("limitMinutes", 30).coerceIn(5, 240)
+                archiveDay(storedDate, seconds, count, shorts, finishingLimit)
             }
             val editor = prefs.edit()
                 .putString("date", today)
@@ -1101,6 +1378,8 @@ class ReelAccessibilityService : AccessibilityService() {
                     .remove("pendingLimitDate")
             }
             editor.apply()
+            // Toggles switched off yesterday stop being guarded from today.
+            Surfaces.promote(prefs)
         }
     }
 
@@ -1289,7 +1568,9 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!Settings.canDrawOverlays(this)) return
 
         if (!overlayShown) buildPill()
-        catView?.setImageResource(catFaceRes())
+        // Prefs are read on every render, so wearing something in the Closet
+        // while Instagram is open shows on the next tick.
+        catView?.let { CatFigureLayers.bindPill(it, catStage(), Closet.outfit(prefs)["top"]) }
         pillLabel?.setTextColor(CatDecay.textColor(currentSeconds() / 60, limitMinutes()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
@@ -1299,19 +1580,36 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        catView?.setImageResource(CatDecay.drawableForStage(6)) // gone
+        catView?.let { CatFigureLayers.bindPill(it, 6, Closet.outfit(prefs)["top"]) } // gone
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
+        if (bounceFeltPending) {
+            bounceFeltPending = false
+            pill?.let { v -> v.post { feel(v, "reject") } }
+        }
     }
 
-    /** Cat face for the pill/widget by how close today's time is to the limit. */
-    private fun catFaceRes(): Int = CatDecay.drawable(currentSeconds() / 60, limitMinutes())
+    /**
+     * One of the system's own haptic clicks on [view]: short, device-tuned,
+     * and silenced by the user's touch-feedback setting. Mirrors the app's
+     * vocabulary in lib/haptics.ts ("tick", "tap", "confirm", "reject").
+     */
+    private fun feel(view: View, kind: String) {
+        val modern = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        val constant = when (kind) {
+            "confirm" -> if (modern) HapticFeedbackConstants.CONFIRM else HapticFeedbackConstants.VIRTUAL_KEY
+            "reject" -> if (modern) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS
+            "tick" -> HapticFeedbackConstants.CLOCK_TICK
+            else -> HapticFeedbackConstants.VIRTUAL_KEY
+        }
+        view.performHapticFeedback(constant)
+    }
+
+    /** How far the cat has wilted, by how close today's time is to the limit. */
+    private fun catStage(): Int = CatDecay.stage(currentSeconds() / 60, limitMinutes())
 
     private fun buildPill() {
-        val cat = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setImageResource(catFaceRes())
-        }
+        val cat = CatFigureLayers.pillHead(this)
         val label = TextView(this).apply {
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, if (debug) 11f else 15f)
@@ -1372,9 +1670,10 @@ class ReelAccessibilityService : AccessibilityService() {
 
     /**
      * Show the full-feed block at [bounds] (the feed area, above the bottom nav). The
-     * cat (one of the unlocked ones) + line rotate each time the block re-appears, then
-     * stay put while it's up. We only push a layout when first revealing or when the
-     * bounds actually change, so a steady block doesn't churn updateViewLayout every tick.
+     * line rotates each time the block re-appears and the cat is dressed and wilted to
+     * match today, then both stay put while it's up. We only push a layout when first
+     * revealing or when the bounds actually change, so a steady block doesn't churn
+     * updateViewLayout every tick.
      */
     private fun showBlockCover(bounds: Rect) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -1385,10 +1684,9 @@ class ReelAccessibilityService : AccessibilityService() {
 
         val fresh = !catCoverVisible
         if (fresh) {
-            // A random photo from the cats you have unlocked, and the next line.
+            // The cat as it is right now, in what it wears, and the next line.
             val idx = blockShowSeq++
-            val resId = randomUnlockedCatRes()
-            if (resId != 0) catImageView?.setImageResource(resId)
+            catFigureView?.let { CatFigureLayers.bind(it, catStage(), Closet.outfit(prefs)) }
             catTextView?.text = coverLines[idx % coverLines.size]
         }
         if (fresh || bounds != lastCoverBounds) {
@@ -1416,15 +1714,7 @@ class ReelAccessibilityService : AccessibilityService() {
                 setOnClickListener { /* eat */ }
             }
             if (i == catCoverLayerCount - 1) {
-                val img = ImageView(this).apply {
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    clipToOutline = true
-                    outlineProvider = object : ViewOutlineProvider() {
-                        override fun getOutline(view: View, outline: Outline) {
-                            outline.setRoundRect(0, 0, view.width, view.height, dp(22).toFloat())
-                        }
-                    }
-                }
+                val img = CatFigureLayers.figure(this)
                 val label = TextView(this).apply {
                     setTextColor(Color.WHITE)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
@@ -1436,7 +1726,7 @@ class ReelAccessibilityService : AccessibilityService() {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER_HORIZONTAL
                     setPadding(dp(24), dp(24), dp(24), dp(24))
-                    addView(img, LinearLayout.LayoutParams(dp(190), dp(190)))
+                    addView(img, LinearLayout.LayoutParams(dp(110), dp(180)))
                     addView(
                         label,
                         LinearLayout.LayoutParams(
@@ -1453,7 +1743,7 @@ class ReelAccessibilityService : AccessibilityService() {
                         Gravity.CENTER
                     )
                 )
-                catImageView = img
+                catFigureView = img
                 catTextView = label
             }
 
@@ -1507,7 +1797,7 @@ class ReelAccessibilityService : AccessibilityService() {
     private fun removeCatCover() {
         for (layer in catLayers) runCatching { windowManager?.removeView(layer) }
         catLayers.clear()
-        catImageView = null
+        catFigureView = null
         catTextView = null
         catCoverVisible = false
         lastCoverBounds = null
@@ -1518,7 +1808,7 @@ class ReelAccessibilityService : AccessibilityService() {
 
     // --- Nudge modal -----------------------------------------------------------
 
-    /** Build + show the center modal for [key], if still eligible. */
+    /** Build + show the nudge sheet for [key], if still eligible. */
     private fun showNudge(key: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
@@ -1527,112 +1817,40 @@ class ReelAccessibilityService : AccessibilityService() {
         val (tag, headline, body) = nudgeCopy(key)
         val hard = key in nudgeHardKeys || key.startsWith("time")
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(16))
-            background = nudgeCardBackground()
-            elevation = dp(12).toFloat()
+        val sheet = sheetBody()
+        // The dressed cat, wilted to match today, where the app's sheets put
+        // their icon.
+        sheet.addView(
+            CatFigureLayers.figure(this).also { CatFigureLayers.bind(it, catStage(), Closet.outfit(prefs)) },
+            LinearLayout.LayoutParams(dp(86), dp(140))
+        )
+        if (tag != null) sheet.addView(sheetKicker(tag.removePrefix("// "), WASTE), gapTop(16))
+        sheet.addView(sheetHeadline(headline), gapTop(if (tag != null) 8 else 16))
+        sheet.addView(sheetText(body), gapTop(8))
+
+        val quitBtn = sheetAccentButton("Quit ${trackedAppName()}").apply {
+            setOnClickListener { feel(it, "confirm"); hideNudgeModal(); performGlobalAction(GLOBAL_ACTION_HOME) }
         }
-
-        if (tag != null) {
-            card.addView(TextView(this).apply {
-                text = tag.removePrefix("// ")
-                setTextColor(Color.parseColor("#E0913C"))
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
-                typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-                letterSpacing = 0.08f
-                setPadding(dp(11), dp(5), dp(11), dp(5))
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(999).toFloat()
-                    setColor(Color.parseColor("#24E0913C")) // ~14% amber tint
-                }
-            }, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(12) })
-        }
-
-        // A cat photo from the ones the user has unlocked.
-        val img = ImageView(this).apply {
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            clipToOutline = true
-            outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setRoundRect(0, 0, view.width, view.height, dp(13).toFloat())
-                }
-            }
-            val resId = randomUnlockedCatRes()
-            if (resId != 0) setImageResource(resId)
-        }
-        card.addView(img, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(124)))
-
-        card.addView(TextView(this).apply {
-            text = headline
-            setTextColor(Color.parseColor("#F2F1EC"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(12) })
-
-        card.addView(TextView(this).apply {
-            text = body
-            setTextColor(Color.parseColor("#9A9A92"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            setLineSpacing(dp(3).toFloat(), 1f)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(8) })
-
-        val catBtn = TextView(this).apply {
-            text = "Watch a cat instead"
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#0D0D0C"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
-            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-            setPadding(0, dp(14), 0, dp(14))
-            background = nudgeButtonBackground("#F2F1EC")
-            setOnClickListener { hideNudgeModal(); launchCatGallery() }
-        }
-        card.addView(catBtn, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(18) })
-
-        val keepBtn = TextView(this).apply {
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#62625B"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            typeface = Typeface.DEFAULT
-            setPadding(0, dp(12), 0, dp(6))
-            text = "Keep scrolling"
-        }
-        card.addView(keepBtn, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(4) })
-
-        // Full-screen scrim that consumes touches (blocks the reel underneath).
-        val scrim = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#BF000000"))
-            isClickable = true
-            setOnClickListener { /* eat */ }
-            addView(card, FrameLayout.LayoutParams(
-                dp(300), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER
-            ).apply { leftMargin = dp(16); rightMargin = dp(16) })
-        }
+        sheet.addView(quitBtn, gapTop(20))
+        val keepBtn = sheetGhostButton("Keep scrolling")
+        sheet.addView(keepBtn, gapTop(10))
 
         // HARD: gate "Keep scrolling" behind a 3-2-1 countdown; SOFT: instant.
         if (hard) {
             var remaining = 3
             keepBtn.isEnabled = false
-            keepBtn.alpha = 0.5f
+            keepBtn.alpha = 0.4f
             keepBtn.text = "Keep scrolling ($remaining)"
             val tick = object : Runnable {
                 override fun run() {
                     remaining -= 1
+                    // A soft clock tick per count, so the wait is felt, not just read.
+                    feel(keepBtn, "tick")
                     if (remaining <= 0) {
                         keepBtn.text = "Keep scrolling"
                         keepBtn.isEnabled = true
                         keepBtn.alpha = 1f
-                        keepBtn.setOnClickListener { hideNudgeModal() }
+                        keepBtn.setOnClickListener { feel(it, "reject"); hideNudgeModal() }
                         nudgeCountdown = null
                     } else {
                         keepBtn.text = "Keep scrolling ($remaining)"
@@ -1643,25 +1861,10 @@ class ReelAccessibilityService : AccessibilityService() {
             nudgeCountdown = tick
             mainHandler.postDelayed(tick, 1000L)
         } else {
-            keepBtn.setOnClickListener { hideNudgeModal() }
+            keepBtn.setOnClickListener { feel(it, "reject"); hideNudgeModal() }
         }
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
-
-        runCatching {
-            windowManager?.addView(scrim, params)
-            nudgeModal = scrim
-            nudgeModalShown = true
-            markNudgeFired(key)
-        }
+        if (presentSheet(sheet)) markNudgeFired(key)
     }
 
     private fun hideNudgeModal() {
@@ -1672,14 +1875,11 @@ class ReelAccessibilityService : AccessibilityService() {
         nudgeModalShown = false
     }
 
-    /** Bring Wilt to the front and ask it to open the cat gallery. */
-    private fun launchCatGallery() {
-        prefs.edit().putBoolean("openCats", true).apply()
-        val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-        }
-        runCatching { if (intent != null) startActivity(intent) }
-    }
+    // The tracked app we last heard from, so a nudge can name the app it is over.
+    private var lastTrackedPkg: String? = null
+
+    /** The app the nudge is over, by name, for "Quit Instagram" / "Quit YouTube". */
+    private fun trackedAppName(): String = appLabel(lastTrackedPkg)
 
     /** Announce auto-block once per day when it first engages (guilt only). */
     private fun maybeShowLimitAlert(): Boolean {
@@ -1691,74 +1891,148 @@ class ReelAccessibilityService : AccessibilityService() {
         return nudgeModalShown
     }
 
-    /** "You hit your limit" card. Reels stay blocked until the next daily reset. */
+    /** "You hit your limit" sheet. Reels stay blocked until the next daily reset. */
     private fun showLimitReached() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (nudgeModalShown) return
 
-        val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(22), dp(22), dp(20))
-            background = nudgeCardBackground()
-            elevation = dp(12).toFloat()
+        val sheet = sheetBody()
+        sheet.addView(sheetKicker("${currentSeconds() / 60} min today", OVER))
+        sheet.addView(sheetHeadline("That's your limit."), gapTop(8))
+        sheet.addView(
+            sheetText("You've spent ${fmtDurationLong(currentSeconds())} on reels today. Wilt's blocking them until midnight."),
+            gapTop(8),
+        )
+        sheet.addView(sheetAccentButton("Okay").apply {
+            setOnClickListener { feel(it, "confirm"); hideNudgeModal() }
+        }, gapTop(20))
+        presentSheet(sheet)
+    }
+
+    // --- Sheets over Instagram/YouTube ----------------------------------------
+    //
+    // The same sheet the app uses (components/Sheet.tsx and components/kit.tsx),
+    // drawn natively: SHEET_BG body with a 28dp top radius and a hairline top
+    // edge over the app's scrim; a Kicker, an h3 headline and muted body text;
+    // then an Accent button (green, ink type, 56dp, 16dp radius) and a Ghost one
+    // (dim text, no surface). Change these together with the app's tokens.
+
+    private val INK = Color.parseColor("#0D0D0C")
+    private val BONE = Color.parseColor("#F2F1EC")
+    private val ASH = Color.parseColor("#9A9A92")
+    private val DIM = Color.parseColor("#62625B")
+    private val GREEN = Color.parseColor("#38C786")
+    private val WASTE = Color.parseColor("#E0913C")
+    private val OVER = Color.parseColor("#D2542F")
+    private val SHEET_BG = Color.parseColor("#161615")
+    private val HAIRLINE = Color.parseColor("#1AF2F1EC") // bone at 10%
+    private val SCRIM = Color.parseColor("#9E000000") // black at 62%
+
+    private fun weight(w: Int): Typeface =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) Typeface.create(Typeface.DEFAULT, w, false)
+        else if (w >= 600) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+
+    private fun gapTop(dpValue: Int) = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+    ).apply { topMargin = dp(dpValue) }
+
+    /** The sheet's body: bottom-anchored, 24dp sides, room for the nav bar below. */
+    private fun sheetBody(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(24), dp(28), dp(24), dp(24) + navBarInset())
+        background = android.graphics.drawable.LayerDrawable(arrayOf(
+            GradientDrawable().apply { setColor(HAIRLINE); cornerRadii = topRadii() },
+            GradientDrawable().apply { setColor(SHEET_BG); cornerRadii = topRadii() },
+        )).apply { setLayerInset(1, 0, dp(1), 0, 0) } // the hairline shows along the top edge
+        isClickable = true // taps on the sheet never reach the scrim
+    }
+
+    private fun topRadii(): FloatArray {
+        val r = dp(28).toFloat()
+        return floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+    }
+
+    private fun navBarInset(): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager?.currentWindowMetrics ?: return 0
+            return metrics.windowInsets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
         }
+        val id = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        return if (id != 0) resources.getDimensionPixelSize(id) else 0
+    }
 
-        card.addView(TextView(this).apply {
-            text = "${currentSeconds() / 60} min today"
-            setTextColor(Color.parseColor("#E0913C"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 10.5f)
-            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-            letterSpacing = 0.08f
-            setPadding(dp(11), dp(5), dp(11), dp(5))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(999).toFloat()
-                setColor(Color.parseColor("#24E0913C"))
-            }
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(14) })
+    /** Kicker: small uppercase caption with wide tracking. */
+    private fun sheetKicker(text: String, color: Int = DIM) = TextView(this).apply {
+        this.text = text.uppercase(Locale.getDefault())
+        setTextColor(color)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        typeface = weight(600)
+        letterSpacing = 0.09f
+    }
 
-        card.addView(TextView(this).apply {
-            text = "That's your limit."
-            setTextColor(Color.parseColor("#F2F1EC"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
-            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ))
+    /** Headline: the app's h3. */
+    private fun sheetHeadline(text: String) = TextView(this).apply {
+        this.text = text
+        setTextColor(BONE)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 24f)
+        typeface = weight(600)
+        letterSpacing = -0.02f
+    }
 
-        card.addView(TextView(this).apply {
-            text = "You've spent ${fmtDurationLong(currentSeconds())} on reels today. Wilt's blocking them until midnight."
-            setTextColor(Color.parseColor("#9A9A92"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
-            setLineSpacing(dp(3).toFloat(), 1f)
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(9) })
+    /** Body: the app's muted body-sm at a 24dp line. */
+    private fun sheetText(text: String) = TextView(this).apply {
+        this.text = text
+        setTextColor(ASH)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        // An exact 24dp line, like the app's leading-6.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) lineHeight = dp(24)
+        else setLineSpacing(dp(24) - paint.fontSpacing, 1f)
+    }
 
-        card.addView(TextView(this).apply {
-            text = "Okay"
-            gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#04140B"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14.5f)
-            typeface = Typeface.create(Typeface.DEFAULT_BOLD, Typeface.BOLD)
-            setPadding(0, dp(14), 0, dp(14))
-            background = nudgeButtonBackground("#38C786")
-            setOnClickListener { hideNudgeModal() }
-        }, LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(18) })
+    /** Accent: the choice the app wants. Green, ink type, 56dp, 16dp radius. */
+    private fun sheetAccentButton(label: String) = TextView(this).apply {
+        text = label
+        gravity = Gravity.CENTER
+        setTextColor(INK)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        typeface = weight(600)
+        minHeight = dp(56)
+        background = android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(Color.parseColor("#33000000")),
+            GradientDrawable().apply { setColor(GREEN); cornerRadius = dp(16).toFloat() },
+            null,
+        )
+        isClickable = true
+    }
 
+    /** Ghost: the quiet way out. Dim text, no surface, 44dp. */
+    private fun sheetGhostButton(label: String) = TextView(this).apply {
+        text = label
+        gravity = Gravity.CENTER
+        setTextColor(DIM)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+        typeface = weight(500)
+        minHeight = dp(44)
+        isClickable = true
+    }
+
+    /**
+     * Put [sheet] up over the scrim and slide it in the way the app's sheets
+     * arrive. The scrim eats every touch so the reel underneath can't be used.
+     * True once the window is attached.
+     */
+    private fun presentSheet(sheet: LinearLayout): Boolean {
         val scrim = FrameLayout(this).apply {
-            setBackgroundColor(Color.parseColor("#BF000000"))
+            setBackgroundColor(SCRIM)
             isClickable = true
             setOnClickListener { /* eat */ }
-            addView(card, FrameLayout.LayoutParams(
-                dp(320), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER
-            ).apply { leftMargin = dp(16); rightMargin = dp(16) })
+            addView(sheet, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM,
+            ))
         }
-
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -1767,27 +2041,30 @@ class ReelAccessibilityService : AccessibilityService() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
-        ).apply { gravity = Gravity.TOP or Gravity.START }
-
-        runCatching {
-            windowManager?.addView(scrim, params)
-            nudgeModal = scrim
-            nudgeModalShown = true
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            // Edge to edge: the scrim covers the status bar and the sheet runs
+            // under the nav bar (its padding already makes room), like the app's.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) fitInsetsTypes = 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
+
+        val shown = runCatching { windowManager?.addView(scrim, params) }.isSuccess
+        if (!shown) return false
+        nudgeModal = scrim
+        nudgeModalShown = true
+        scrim.alpha = 0f
+        scrim.animate().alpha(1f).setDuration(220).start()
+        sheet.translationY = resources.displayMetrics.heightPixels.toFloat()
+        sheet.animate()
+            .translationY(0f)
+            .setDuration(340)
+            .setInterpolator(android.view.animation.DecelerateInterpolator(2.2f))
+            .start()
+        return true
     }
-
-    private fun nudgeCardBackground(): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(Color.parseColor("#1A1A18"))
-            cornerRadius = dp(26).toFloat()
-            setStroke(dp(1), Color.parseColor("#1AF2F1EC"))
-        }
-
-    private fun nudgeButtonBackground(hex: String): GradientDrawable =
-        GradientDrawable().apply {
-            setColor(Color.parseColor(hex))
-            cornerRadius = dp(15).toFloat()
-        }
 
     // --- Stories-tray scroll guard --------------------------------------------
 
@@ -1985,26 +2262,6 @@ class ReelAccessibilityService : AccessibilityService() {
         return if (node.isScrollable) node else null
     }
 
-    private val catCount = 13
-
-    /** Resolve a bundled cat photo (`wilt_cat_1..N`) by index, 0 if missing. */
-    private fun catDrawableRes(index: Int): Int =
-        resources.getIdentifier("wilt_cat_$index", "drawable", packageName)
-
-    /**
-     * How many cats the user has actually earned. The gallery gates each cat behind
-     * a lifetime-points threshold, so the block cover and the nudge must only draw
-     * from that prefix: showing a locked cat gives away a reward not yet earned.
-     * JS owns the number and mirrors it into prefs (see setUnlockedCats); 1 is the
-     * floor because the first cat is free, so there is always something to show.
-     */
-    private fun unlockedCatCount(): Int =
-        prefs.getInt("unlockedCats", 1).coerceIn(1, catCount)
-
-    /** A random one of the unlocked cat photos, 0 if the drawable is missing. */
-    private fun randomUnlockedCatRes(): Int =
-        catDrawableRes(java.util.concurrent.ThreadLocalRandom.current().nextInt(unlockedCatCount()) + 1)
-
     private fun pillText(seconds: Int): String {
         val minutes = seconds / 60
         return when {
@@ -2027,23 +2284,23 @@ class ReelAccessibilityService : AccessibilityService() {
         if (key.startsWith("time")) {
             val mins = key.removePrefix("time").toIntOrNull() ?: 0
             val body = timeBodies[(mins / 3) % timeBodies.size]
-            return Triple("// $mins MIN TODAY", "$mins minutes today.", body)
+            return Triple("Reel time", "$mins minutes today.", body)
         }
         return nudgeCopyFixed(key)
     }
 
     private fun nudgeCopyFixed(key: String): Triple<String?, String, String> = when (key) {
-        "latenight" -> Triple(null, "It's late. Put it down.", "Nothing good happens in the reels at this hour. Go to sleep.")
-        "morning" -> Triple(null, "Reels before 10am?", "You could be doing something better than ruining your morning with this.")
-        "workhours" -> Triple(null, "Mid-workday scroll.", "The deadline didn't move. The cat's judging you.")
+        "latenight" -> Triple("Late night", "It's late. Put it down.", "Nothing good happens in the reels at this hour. Go to sleep.")
+        "morning" -> Triple("Morning", "Reels before 10am?", "You could be doing something better than ruining your morning with this.")
+        "workhours" -> Triple("Work hours", "Mid-workday scroll.", "The deadline didn't move. The cat's judging you.")
         "sitting" -> Triple("// 15 MIN STRAIGHT", "Come up for air.", "Fifteen minutes in the feed without stopping.")
         "count100" -> Triple("// 100 REELS TODAY", "A hundred reels.", "You've thumbed past 100 today. Triple digits.")
         "count50" -> Triple("// 50 REELS TODAY", "Fifty reels deep.", "Fifty swipes today. The cat lost count.")
         "count25" -> Triple("// 25 REELS TODAY", "Twenty-five reels.", "Twenty-five down. Notice you're doing it?")
-        "vsyesterday" -> Triple(null, "Past yesterday already.", "You've out-scrolled your whole yesterday — and it's not over.")
-        "cleanday" -> Triple(null, "Yesterday was clean.", "Barely scrolled. Keep it going today.")
+        "vsyesterday" -> Triple("Past yesterday", "Past yesterday already.", "You've out-scrolled your whole yesterday, and it's not over.")
+        "cleanday" -> Triple("Clean yesterday", "Yesterday was clean.", "Barely scrolled. Keep it going today.")
         "weekly" -> Triple("// THIS WEEK", "This week so far", "${fmtDurationLong(weekSeconds())} in the feed this week.")
-        else -> Triple(null, "Enough scrolling.", "The cat would rather you stopped.")
+        else -> Triple("Wilt", "Enough scrolling.", "The cat would rather you stopped.")
     }
 
     /** "1h 5m" / "45m" from seconds, for nudge copy. */

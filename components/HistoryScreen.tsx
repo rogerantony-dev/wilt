@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
+import { feel } from "../lib/haptics";
 import { ChartIcon, GithubIcon, LinkOutIcon } from "./icons";
 
 import { C, Kicker, Segmented } from "./console";
@@ -193,6 +194,7 @@ function SourceLink() {
   return (
     <Pressable
       onPress={() => {
+        feel("tap");
         // Nothing to recover if no browser handles the link, so fail silently.
         Linking.openURL(REPO_URL).catch(() => {});
       }}

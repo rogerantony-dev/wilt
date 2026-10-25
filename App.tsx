@@ -9,33 +9,38 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
-import { CatGallery } from "./components/CatGallery";
+import { ClosetSheet } from "./components/ClosetSheet";
+import { CoinExplainer, type CoinOrigin } from "./components/CoinExplainer";
+import { GoldCoin } from "./components/GoldCoin";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { OnboardingFlow } from "./components/Onboarding";
 import { PaymentPauseScreen } from "./components/PaymentPause";
 import { Brand, C, Kicker } from "./components/console";
 import {
-  consumeOpenCats,
   dismissPaymentPause,
   getHistory,
   getStatus,
   grantExtraMinute,
-  markPointsCelebrated,
   markStreakCelebrated,
   resumeAfterPayment,
   setLimit,
   setMode,
-  setUnlockedCats,
+  setSurface,
+  addApp,
+  removeApp,
+  turnOnService,
   type WiltMode,
   type WiltStatus,
+  type WiltSurface,
 } from "./modules/wiltnative";
-import { computeProgress, type Progress } from "./components/progress";
-import { CAT_THRESHOLDS } from "./components/cats";
+import { coinBalance, computeProgress, type Progress } from "./components/progress";
+import { NO_OUTFIT, normalizeOutfit, type Outfit } from "./components/closet";
 import { MilestoneModal } from "./components/MilestoneModal";
 import { Sheet } from "./components/Sheet";
+import { AppsSheet } from "./components/AppsSheet";
 import { DiscHero } from "./components/DiscHero";
-import { ChartIcon, ChevronDownIcon, HourglassIcon, LockIcon, PawIcon, PlusIcon, ShieldIcon, StopwatchIcon } from "./components/icons";
-import { AmbientField } from "./components/AmbientField";
+import { ChartIcon, ChevronDownIcon, HourglassIcon, LockIcon, PlusIcon, ShieldIcon, ShirtIcon, SlidersIcon, StopwatchIcon } from "./components/icons";
+import { AmbientField, DayAccent } from "./components/AmbientField";
 import { decayStage, stageT } from "./components/catdecay";
 import { timeLeftState } from "./components/timeleft";
 import { LimitSlider } from "./components/LimitSlider";
@@ -43,6 +48,7 @@ import { PanelUIProvider } from "./components/ui/panel-ui-provider";
 import { Alert } from "./components/ui/alert";
 import { Button } from "./components/ui/button";
 import { AccentButton, GhostButton, GLASS, PrimaryButton } from "./components/kit";
+import { feel } from "./lib/haptics";
 import { Tabs } from "./components/ui/tabs";
 import { Text } from "./components/ui/text";
 import { Typography } from "./components/ui/typography";
@@ -66,12 +72,14 @@ export default function App() {
   const [status, setStatus] = useState<WiltStatus | null>(() => getStatus());
   const [confirmGuilt, setConfirmGuilt] = useState(false);
   const [screen, setScreen] = useState<"home" | "history">("home");
-  const [catsOpen, setCatsOpen] = useState(false);
+  const [closetOpen, setClosetOpen] = useState(false);
+  // The tile coin's place on screen while the explainer is up; null when shut.
+  const [coinFrom, setCoinFrom] = useState<CoinOrigin | null>(null);
   const [limitPickerOpen, setLimitPickerOpen] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(false);
   const [milestone, setMilestone] = useState<{
-    kind: "streak" | "cats";
+    kind: "streak";
     streak: number;
-    unlockedCats: number;
     levelDown: { from: number; to: number } | null;
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,16 +87,8 @@ export default function App() {
   // (mount-only) rather than re-subscribing on every navigation.
   const screenRef = useRef(screen);
   screenRef.current = screen;
-  const catsOpenRef = useRef(catsOpen);
-  catsOpenRef.current = catsOpen;
 
   const refresh = useCallback(() => setStatus(getStatus()), []);
-
-  // The accessibility service sets an openCats flag when "Watch a cat instead"
-  // is tapped on a nudge; consume it on resume and open the gallery.
-  const checkOpenCats = useCallback(() => {
-    if (consumeOpenCats()) setCatsOpen(true);
-  }, []);
 
   // Poll status for a few seconds after coming to the foreground. The
   // accessibility service writes its "connected" heartbeat a beat after you
@@ -97,6 +97,10 @@ export default function App() {
   // permissions are live (so the tick lands and onboarding hands off to home).
   const syncStatus = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
+    // Wilt in front means the payment app is not: come back on by itself
+    // where the app may do that, instead of waiting on a tap.
+    const now = getStatus();
+    if (now?.paymentPauseApp && now.canAutoResume) resumeAfterPayment();
     let attempts = 0;
     const tick = () => {
       const next = getStatus();
@@ -119,18 +123,12 @@ export default function App() {
 
   useMountEffect(() => {
     syncStatus();
-    checkOpenCats();
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         syncStatus();
-        checkOpenCats();
       }
     });
     const backSub = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (catsOpenRef.current) {
-        setCatsOpen(false);
-        return true;
-      }
       if (screenRef.current === "history") {
         setScreen("home");
         return true;
@@ -167,6 +165,16 @@ export default function App() {
     if (resumeAfterPayment()) syncStatus();
   }, [syncStatus]);
 
+  // Onboarding's switch: on directly where the app may do it, else Settings.
+  const turnOn = useCallback(() => {
+    if (turnOnService()) {
+      feel("confirm");
+      syncStatus();
+    } else {
+      feel("tap"); // off to Settings
+    }
+  }, [syncStatus]);
+
   const dismissPause = useCallback(() => {
     dismissPaymentPause();
     refresh();
@@ -184,37 +192,26 @@ export default function App() {
   // moments have already been shown. Recomputed whenever status refreshes.
   const progress: Progress = useMemo(
     () =>
-      computeProgress(getHistory(), limit, localToday(), CAT_THRESHOLDS, {
+      computeProgress(getHistory(), limit, localToday(), {
         lastCelebratedStreakMilestone: status?.lastCelebratedStreakMilestone ?? 0,
-        lastPointsCelebrated: status?.lastPointsCelebrated ?? 0,
       }),
     [status, limit]
   );
+  // Coins banked from finished days, less what the closet has spent.
+  const balance = coinBalance(progress.coins, status?.coinsSpent ?? 0);
+  const owned = status?.ownedItems ?? [];
+  // What the cat wears everywhere; a stale or unowned id draws as none.
+  const outfit: Outfit = status ? normalizeOutfit(status.outfit, owned) : NO_OUTFIT;
 
-  // The accessibility service shows cats too (the nudge card, the block cover),
-  // and it must only ever show ones you've earned. The thresholds and the points
-  // maths live here, so mirror the count over whenever it changes.
-  useEffect(() => {
-    setUnlockedCats(progress.unlockedCount);
-  }, [progress.unlockedCount]);
-
-  // Surface one pending moment when the app opens. A streak offer outranks cats.
+  // Surface a pending streak offer when the app opens.
   useMountEffect(() => {
-    if (progress.pendingLevelDown) {
-      setMilestone({
-        kind: "streak",
-        streak: progress.pendingLevelDown.milestone,
-        unlockedCats: 0,
-        levelDown: { from: progress.pendingLevelDown.from, to: progress.pendingLevelDown.to },
-      });
-    } else if (progress.pendingCatUnlocks.length) {
-      setMilestone({
-        kind: "cats",
-        streak: progress.streak,
-        unlockedCats: progress.pendingCatUnlocks.length,
-        levelDown: null,
-      });
-    }
+    if (!progress.pendingLevelDown) return;
+    feel("confirm");
+    setMilestone({
+      kind: "streak",
+      streak: progress.pendingLevelDown.milestone,
+      levelDown: { from: progress.pendingLevelDown.from, to: progress.pendingLevelDown.to },
+    });
   });
 
   const changeMode = useCallback(
@@ -261,6 +258,30 @@ export default function App() {
   // limit. Block holds a calm mid-level since nothing is being spent.
   const burn = mode === "block" ? 0.35 : Math.min(1, seconds / Math.max(1, limit * 60));
 
+  const toggleSurface = useCallback(
+    (keys: WiltSurface[], on: boolean) => {
+      for (const key of keys) setSurface(key, on);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const addGuardedApp = useCallback(
+    (pkg: string) => {
+      addApp(pkg);
+      refresh();
+    },
+    [refresh]
+  );
+
+  const removeGuardedApp = useCallback(
+    (pkg: string) => {
+      removeApp(pkg);
+      refresh();
+    },
+    [refresh]
+  );
+
   const grantMinute = useCallback(() => {
     grantExtraMinute();
     refresh();
@@ -268,13 +289,14 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+    <DayAccent.Provider value={accent}>
     <PanelUIProvider>
       {/* SafeAreaView is not a core component, so it takes a style rather than a className. */}
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar style="light" />
         {Platform.OS !== "android" ? (
           <View className="grow px-6 pt-4">
-            <Brand on={false} />
+            <Brand />
             <View className="mt-10 rounded-3xl bg-card p-6">
               <Typography type="body-sm" muted className="leading-6">
                 The Reel counter is Android only. It relies on Android's overlay and accessibility
@@ -286,13 +308,15 @@ export default function App() {
           <View className="flex-1 overflow-hidden px-6 pb-6 pt-4">
               <AmbientField color={accent} level={burn} />
               <View className="flex-row items-center justify-between">
-                <Brand on={true} />
+                <Brand />
                 <LimitChip value={limit} onPress={() => setLimitPickerOpen(true)} />
               </View>
               <Dashboard
                 streak={progress.streak}
-                points={progress.points}
-                pendingPoints={progress.pendingPoints}
+                coins={balance}
+                pendingCoins={progress.pendingCoins}
+                coinOpen={coinFrom !== null}
+                outfit={outfit}
                 mode={mode}
                 seconds={seconds}
                 count={count}
@@ -303,7 +327,9 @@ export default function App() {
                 onGrantMinute={grantMinute}
                 onChangeMode={changeMode}
                 onOpenHistory={() => setScreen("history")}
-                onOpenCats={() => setCatsOpen(true)}
+                onOpenCoin={setCoinFrom}
+                onOpenCloset={() => setClosetOpen(true)}
+                onOpenApps={() => setAppsOpen(true)}
               />
           </View>
         ) : paymentPauseApp ? (
@@ -318,6 +344,8 @@ export default function App() {
           <OnboardingFlow
             overlayDone={overlayDone}
             accessibilityDone={accessibilityDone}
+            canTurnOn={status?.canAutoResume === true}
+            onTurnOnService={turnOn}
             onFinish={() => setOnboardingFinished(true)}
           />
         )}
@@ -329,17 +357,21 @@ export default function App() {
         onGiveIn={giveIn}
       />
 
-      <CatGallery
-        visible={catsOpen}
-        onClose={() => setCatsOpen(false)}
-        unlockedCount={progress.unlockedCount}
+      <ClosetSheet
+        visible={closetOpen}
+        onClose={() => setClosetOpen(false)}
+        outfit={outfit}
+        owned={owned}
+        balance={balance}
+        onChanged={refresh}
       />
+
+      <CoinExplainer visible={coinFrom !== null} from={coinFrom} onClose={() => setCoinFrom(null)} />
 
       <MilestoneModal
         visible={milestone !== null}
         kind={milestone?.kind ?? null}
         streak={milestone?.streak ?? 0}
-        unlockedCats={milestone?.unlockedCats ?? 0}
         levelDown={milestone?.levelDown ?? null}
         onAcceptLevelDown={() => {
           if (milestone?.levelDown) setLimit(milestone.levelDown.to);
@@ -349,13 +381,23 @@ export default function App() {
         }}
         onDismiss={() => {
           if (milestone?.kind === "streak") markStreakCelebrated(milestone.streak);
-          if (milestone?.kind === "cats") markPointsCelebrated(progress.points);
           setMilestone(null);
           refresh();
         }}
       />
 
       <HistoryScreen visible={screen === "history"} onClose={() => setScreen("home")} />
+
+      <AppsSheet
+        visible={appsOpen}
+        surfaces={status?.surfaces ?? {}}
+        pendingOff={status?.surfacesPendingOff ?? []}
+        customApps={status?.customApps ?? []}
+        onToggle={toggleSurface}
+        onAddApp={addGuardedApp}
+        onRemoveApp={removeGuardedApp}
+        onClose={() => setAppsOpen(false)}
+      />
 
       <LimitPicker
         visible={limitPickerOpen}
@@ -365,6 +407,7 @@ export default function App() {
         onClose={() => setLimitPickerOpen(false)}
       />
     </PanelUIProvider>
+    </DayAccent.Provider>
     </SafeAreaProvider>
   );
 }
@@ -389,12 +432,16 @@ function Dashboard({
   autoBlocked,
   graceLeft,
   streak,
-  points,
-  pendingPoints,
+  coins,
+  pendingCoins,
+  coinOpen,
+  outfit,
   onGrantMinute,
   onChangeMode,
   onOpenHistory,
-  onOpenCats,
+  onOpenCoin,
+  onOpenCloset,
+  onOpenApps,
 }: {
   mode: WiltMode;
   seconds: number;
@@ -404,12 +451,17 @@ function Dashboard({
   autoBlocked: boolean;
   graceLeft: number;
   streak: number;
-  points: number;
-  pendingPoints: number;
+  coins: number;
+  pendingCoins: number;
+  /** The explainer has the coin, so the tile's own coin hides. */
+  coinOpen: boolean;
+  outfit: Outfit;
   onGrantMinute: () => void;
   onChangeMode: (mode: WiltMode) => void;
   onOpenHistory: () => void;
-  onOpenCats: () => void;
+  onOpenCoin: (from: CoinOrigin) => void;
+  onOpenCloset: () => void;
+  onOpenApps: () => void;
 }) {
   const minutes = Math.floor(seconds / 60);
   const [slot, setSlot] = useState(0);
@@ -435,9 +487,10 @@ function Dashboard({
               title="Walled off."
               subtitle={`You hit ${fmtLimit(limit)}. Back at midnight.`}
               height={slot}
+              outfit={outfit}
             />
           ) : mode === "guilt" ? (
-            <GuiltDisc minutes={minutes} limit={limit} height={slot} />
+            <GuiltDisc minutes={minutes} limit={limit} height={slot} outfit={outfit} />
           ) : (
             <DiscHero
               color={C.toxic}
@@ -447,6 +500,7 @@ function Dashboard({
               title="Walled off."
               subtitle="Reels can't reach you till midnight."
               height={slot}
+              outfit={outfit}
             />
           )
         ) : null}
@@ -454,11 +508,7 @@ function Dashboard({
 
       <View className="flex-row gap-2.5">
         <StatTile value={`${streak}`} label={streak === 1 ? "day clean" : "days clean"} onPress={onOpenHistory} />
-        <StatTile
-          value={points.toLocaleString()}
-          label={pendingPoints > 0 ? `pts · +${pendingPoints}` : "points"}
-          onPress={onOpenCats}
-        />
+        <CoinTile coins={coins} pending={pendingCoins} hidden={coinOpen} onOpen={onOpenCoin} />
       </View>
 
       {limitReached ? (
@@ -498,15 +548,26 @@ function Dashboard({
       )}
 
       <View className="flex-row gap-3 pt-5">
-        <TrayButton icon={<PawIcon color={C.bone} />} label="Cats" onPress={onOpenCats} />
+        <TrayButton icon={<ShirtIcon color={C.bone} />} label="Closet" onPress={onOpenCloset} />
         <TrayButton icon={<ChartIcon color={C.bone} />} label="History" onPress={onOpenHistory} />
+        <TrayButton icon={<SlidersIcon color={C.bone} />} label="Apps" onPress={onOpenApps} />
       </View>
     </View>
   );
 }
 
 /** The Guilt disc: the vessel drains as the minutes burn, the cat wilts with it. */
-function GuiltDisc({ minutes, limit, height }: { minutes: number; limit: number; height: number }) {
+function GuiltDisc({
+  minutes,
+  limit,
+  height,
+  outfit,
+}: {
+  minutes: number;
+  limit: number;
+  height: number;
+  outfit: Outfit;
+}) {
   const { minutesLeft, color } = timeLeftState(minutes, limit);
   const t = stageT(decayStage(minutes, limit));
   return (
@@ -517,6 +578,7 @@ function GuiltDisc({ minutes, limit, height }: { minutes: number; limit: number;
       title={`${minutesLeft} min left`}
       subtitle={`of ${limit} today`}
       height={height}
+      outfit={outfit}
     />
   );
 }
@@ -540,6 +602,55 @@ function StatTile({ value, label, onPress }: { value: string; label: string; onP
   );
 }
 
+/** The coin balance. Tapping it sends this coin off to explain itself. */
+function CoinTile({
+  coins,
+  pending,
+  hidden,
+  onOpen,
+}: {
+  coins: number;
+  pending: number;
+  hidden: boolean;
+  onOpen: (from: CoinOrigin) => void;
+}) {
+  const coinRef = useRef<View>(null);
+  // Page coordinates count from the top of the screen, the same space the
+  // explainer's edge-to-edge layer draws in. measureInWindow would leave out
+  // the status bar and start the coin too high.
+  const open = () =>
+    coinRef.current?.measure((_x, _y, width, _h, pageX, pageY) => onOpen({ x: pageX, y: pageY, size: width }));
+  return (
+    <Button
+      variant="ghost"
+      className="flex-1 flex-col items-start gap-0 rounded-2xl px-3.5 py-3"
+      style={GLASS}
+      onPress={open}
+      accessibilityLabel={`${coins} coins${pending > 0 ? `, ${pending} more at midnight` : ""}`}
+    >
+      <View className="flex-row items-center" style={{ gap: 6 }}>
+        <View ref={coinRef} collapsable={false} style={hidden ? { opacity: 0 } : undefined}>
+          <GoldCoin size={22} />
+        </View>
+        <Text weight="bold" style={{ fontSize: 22, lineHeight: 26, letterSpacing: -0.6, fontVariant: ["tabular-nums"] }}>
+          {coins.toLocaleString()}
+        </Text>
+      </View>
+      <Text size="xs" weight="semibold" className="uppercase text-dim" style={{ letterSpacing: 0.9, fontSize: 10.5 }}>
+        coins
+        {pending > 0 ? (
+          <>
+            {" · "}
+            <Text size="xs" weight="semibold" style={{ color: C.toxic, fontSize: 10.5, fontVariant: ["tabular-nums"] }}>
+              +{pending}
+            </Text>
+          </>
+        ) : null}
+      </Text>
+    </Button>
+  );
+}
+
 function TrayButton({
   icon,
   label,
@@ -553,7 +664,7 @@ function TrayButton({
     <Button
       variant="secondary"
       size="lg"
-      className="flex-1 rounded-2xl"
+      className="flex-1 rounded-2xl px-2"
       style={GLASS}
       labelClassName="text-[15px] font-semibold"
       startContent={icon}
@@ -629,6 +740,7 @@ function LimitPicker({
         )}
         <PrimaryButton
           className="mt-4"
+          haptic="confirm"
           disabled={draft === value ? pendingLimit === 0 : draft === pendingLimit}
           onPress={() => onPick(draft)}
         >
@@ -657,7 +769,12 @@ function ModeSwitch({
     <Tabs
       value={mode}
       defaultValue={mode}
-      onValueChange={(v) => onChangeMode(v as WiltMode)}
+      onValueChange={(v) => {
+        // Walling reels off is a commitment; the way back is just a choice
+        // (its own sheet asks for the confirmation).
+        feel(v === "block" ? "confirm" : "tick");
+        onChangeMode(v as WiltMode);
+      }}
       variant="segmented"
     >
       {/* The old island: a solid track, the active cell raised, and green with
@@ -716,7 +833,9 @@ function PushThroughModal({
         </View>
         <View className="gap-2.5">
           <AccentButton onPress={onKeepBlocking}>Keep blocking</AccentButton>
-          <GhostButton onPress={onGiveIn}>I'll give in</GhostButton>
+          <GhostButton haptic="reject" onPress={onGiveIn}>
+            I'll give in
+          </GhostButton>
         </View>
       </View>
     </Sheet>

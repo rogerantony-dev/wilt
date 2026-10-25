@@ -13,8 +13,10 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Circle, ClipPath, Defs, Ellipse, G, Path, RadialGradient, Rect, Stop } from "react-native-svg";
 
-import { CatHead } from "./CatHead";
+import { CatFigure } from "./CatFigure";
+import { FIGURE_BOX } from "./catshapes";
 import { translateXScaleY } from "./catmatrix";
+import { NO_OUTFIT, type Outfit } from "./closet";
 import { Text } from "./ui/text";
 import { useMountEffect } from "./useMountEffect";
 
@@ -24,7 +26,9 @@ const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 
 const DISC = 214;
 const HALO = DISC + 64;
-const CAT = 150;
+/** The dressed cat, in the figure box at the home size (~104 x 170). */
+const CAT_H = 172;
+const CAT_W = Math.round((CAT_H * FIGURE_BOX.w) / FIGURE_BOX.h);
 
 /** Disc shades per rung colour: a lit centre, a darker rim. */
 const SHADES: Record<string, [string, string, string]> = {
@@ -46,13 +50,14 @@ function shades(color: string): [string, string, string] {
  * In Guilt the disc is a vessel. `level` (1 full, 0 empty) is how much of the
  * day's time is left; the colour sits at that height and sinks as the minutes
  * burn, and the cat stands in it, awake, eyes darting. In Block the disc is
- * full and green and the cat sleeps (`asleep`).
+ * full and green and the cat sleeps (`asleep`). The cat wears `outfit`.
  */
 export function DiscHero({
   color,
   level,
   t,
   asleep = false,
+  outfit = NO_OUTFIT,
   title,
   subtitle,
   height,
@@ -61,6 +66,7 @@ export function DiscHero({
   level: number;
   t: number;
   asleep?: boolean;
+  outfit?: Outfit;
   title: string;
   subtitle: string;
   /** The slot the hero is centred in; every state shares it. */
@@ -137,12 +143,14 @@ export function DiscHero({
           </G>
           <Circle cx={50} cy={50} r={49.5} fill="none" stroke={color} strokeOpacity={0.18} strokeWidth={1} />
         </Svg>
-        <Svg width={CAT} height={CAT} viewBox="0 0 256 256">
-          <CatHead
-            t={t}
-            clipId="disc-cat"
-            eyes={(children: ReactNode) => <AnimatedG animatedProps={eyeProps}>{children}</AnimatedG>}
-          />
+        <CatFigure
+          t={t}
+          outfit={outfit}
+          clipId="disc-cat"
+          width={CAT_W}
+          height={CAT_H}
+          eyes={(children: ReactNode) => <AnimatedG animatedProps={eyeProps}>{children}</AnimatedG>}
+        >
           {asleep ? (
             <>
               <Ellipse cx={102} cy={128} rx={21} ry={20} fill="#33322E" />
@@ -150,9 +158,9 @@ export function DiscHero({
               <Path d="M86 130 q16 12 32 0 M138 130 q16 12 32 0" fill="none" stroke="#0D0D0C" strokeWidth={7} strokeLinecap="round" />
             </>
           ) : null}
-        </Svg>
+        </CatFigure>
         {asleep ? (
-          <View style={{ position: "absolute", right: 42, top: 34 }}>
+          <View style={{ position: "absolute", right: 72, top: 46 }}>
             <Text weight="bold" className="text-success" style={{ fontSize: 22, lineHeight: 24, letterSpacing: -1 }}>
               z<Text weight="bold" className="text-success" style={{ fontSize: 13, opacity: 0.7 }}>z</Text>
             </Text>

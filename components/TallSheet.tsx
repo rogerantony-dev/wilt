@@ -3,11 +3,10 @@ import { View, type ViewProps } from "react-native";
 
 import { BottomSheet } from "./ui/bottom-sheet";
 import { HAIRLINE, SHEET_BG } from "./kit";
-import { AmbientField } from "./AmbientField";
-import { C } from "./console";
+import { SheetGlow } from "./AmbientField";
 
 /**
- * The tall bottom sheet behind the Cats and History screens, on PanelUI's
+ * The tall bottom sheet behind the Closet and History screens, on PanelUI's
  * BottomSheet: the body scrolls while it has room, a downward drag at its top
  * (or on the header) pulls the sheet, and letting go past the threshold or a
  * flick closes it. Backdrop tap closes too. Driven by [visible]; [onClose]
@@ -40,7 +39,7 @@ export function TallSheet({
       >
         {/* The same field as the home screen, so the sheet's glass has
             something to be glass over. */}
-        <AmbientField color={C.toxic} level={0.25} />
+        <SheetGlow />
         {children}
       </BottomSheet.Content>
     </BottomSheet>

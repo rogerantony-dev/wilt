@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wilt: dress the cat</title>
+<style>
+  :root { --ink:#0D0D0C; --panel:#1A1A18; --sheet:#161615; --bone:#F2F1EC; --ash:#9A9A92; --dim:#62625B; --green:#38C786; --amber:#E0913C; --red:#D2542F;
+          --glass:rgba(242,241,236,.06); --hair:rgba(242,241,236,.10); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ink); color:var(--bone); font:14px/1.5 -apple-system,"SF Pro Text",Roboto,system-ui,sans-serif; padding:32px 28px 80px; }
+  h1 { font-size:22px; font-weight:600; letter-spacing:-.3px; margin:0 0 4px; }
+  .sub { color:var(--ash); margin:0 0 20px; max-width:720px; }
+  h2 { font-size:11px; font-weight:600; letter-spacing:1.6px; text-transform:uppercase; color:var(--dim); margin:36px 0 14px; }
+  .control { position:sticky; top:0; z-index:20; background:rgba(13,13,12,.92); backdrop-filter:blur(8px); padding:14px 0 12px; border-bottom:1px solid var(--hair); }
+  .control .row { display:flex; align-items:center; gap:18px; max-width:760px; }
+  input[type=range] { flex:1; accent-color:var(--green); }
+  .readout { min-width:230px; text-align:right; color:var(--ash); font-variant-numeric:tabular-nums; } .readout b { color:var(--bone); }
+  .panels { display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; }
+  .label { text-align:center; color:var(--ash); font-size:12px; margin-top:10px; max-width:320px; }
+  .phone { position:relative; width:320px; height:680px; border-radius:34px; background:var(--ink); border:1px solid rgba(242,241,236,.12); overflow:hidden; }
+  .kicker { font-size:12px; font-weight:600; letter-spacing:1.1px; text-transform:uppercase; color:var(--dim); }
+
+  /* home */
+  .home { position:absolute; inset:0; padding:22px 20px 18px; display:flex; flex-direction:column; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; }
+  .brand { font-weight:700; font-size:17px; }
+  .chip { border:1px solid var(--hair); background:var(--glass); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--ash); }
+  .chip b { color:var(--bone); margin-left:4px; }
+  .hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .disc { position:relative; width:220px; height:220px; border-radius:50%; background:#141413; box-shadow:0 0 0 2px var(--ring,#38C786) inset, 0 0 60px -10px var(--ring,#38C786); display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+  .disc svg { width:104px; height:170px; margin-bottom:22px; }
+  .state { margin-top:18px; font-size:22px; font-weight:700; letter-spacing:-.5px; }
+  .state small { display:block; text-align:center; font-size:13px; color:var(--ash); font-weight:400; letter-spacing:0; }
+  .tiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:6px; }
+  .tile { background:var(--glass); border:1px solid var(--hair); border-radius:16px; padding:12px 14px; }
+  .tile b { font-size:22px; font-variant-numeric:tabular-nums; display:block; line-height:1.1; }
+  .tile span { font-size:11px; font-weight:600; letter-spacing:1.1px; color:var(--dim); }
+  .tray { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:10px; }
+  .tray div { height:48px; border-radius:16px; background:var(--glass); border:1px solid var(--hair); display:flex; align-items:center; justify-content:center; gap:6px; font-weight:600; font-size:14px; }
+  .tray .new { box-shadow:0 0 0 1px var(--green) inset; color:var(--bone); }
+  .tray .new svg { width:22px; height:22px; }
+
+  /* sheet */
+  .scrim { position:absolute; inset:0; background:rgba(0,0,0,.62); }
+  .sheet { position:absolute; left:0; right:0; bottom:0; top:56px; background:var(--sheet); border-top-left-radius:28px; border-top-right-radius:28px; border-top:1px solid var(--hair); overflow:hidden; display:flex; flex-direction:column; }
+  .glow { position:absolute; left:50%; top:-120px; width:420px; height:320px; transform:translateX(-50%); background:radial-gradient(closest-side, rgba(56,199,134,.22), transparent); pointer-events:none; }
+  .grab { width:36px; height:4px; border-radius:2px; background:rgba(242,241,236,.2); margin:10px auto 0; }
+  .sheet .body { position:relative; padding:8px 20px 18px; display:flex; flex-direction:column; flex:1; min-height:0; }
+  .preview { display:flex; justify-content:center; align-items:flex-end; height:150px; }
+  .preview svg { height:140px; width:86px; }
+  .sheet h3 { margin:6px 0 2px; font-size:22px; letter-spacing:-.5px; }
+  .sheet p { margin:0; color:var(--ash); font-size:13px; line-height:1.55; }
+  .seg { display:grid; grid-template-columns:repeat(3,1fr); background:var(--glass); border:1px solid var(--hair); border-radius:16px; padding:4px; margin:14px 0 12px; }
+  .seg button { all:unset; text-align:center; padding:8px 0; border-radius:12px; font-weight:600; font-size:13px; color:var(--ash); cursor:pointer; }
+  .seg button.on { background:rgba(242,241,236,.12); color:var(--bone); }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; overflow:auto; padding-bottom:4px; }
+  .item { all:unset; cursor:pointer; background:var(--glass); border:1px solid var(--hair); border-radius:16px; aspect-ratio:1/1.08; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; padding:4px 4px 7px; position:relative; }
+  .item svg { width:100%; height:72%; overflow:hidden !important; }
+  .item span { font-size:11px; color:var(--ash); }
+  .item.on { box-shadow:0 0 0 1.5px var(--green) inset; }
+  .item.on span { color:var(--bone); }
+  .item.on::after { content:""; position:absolute; top:7px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--green); }
+
+  /* instagram-ish */
+  .reel { position:absolute; inset:0; background:linear-gradient(160deg,#3a2c4a 0%,#1d2a3a 45%,#0f1418 100%); }
+  .reel::after { content:""; position:absolute; left:16px; right:70px; bottom:70px; height:40px; border-radius:8px; background:rgba(255,255,255,.08); }
+  .reel .rail { position:absolute; right:14px; bottom:120px; display:flex; flex-direction:column; gap:18px; }
+  .reel .rail i { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.18); display:block; }
+  .pill { position:absolute; top:46px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:9px; padding:7px 16px 7px 10px; border-radius:999px; background:#161615; border:1px solid var(--hair); box-shadow:0 6px 18px rgba(0,0,0,.45); font-weight:700; font-size:15px; white-space:nowrap; }
+  .pill svg { width:32px; height:32px; }
+  .pills { display:flex; flex-direction:column; gap:12px; padding:20px; }
+  .pills .pill { position:static; transform:none; align-self:flex-start; }
+
+  /* block cover */
+  .cover { position:absolute; inset:0; background:#050507; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
+  .cover svg { width:110px; height:180px; }
+  .cover .line { margin-top:14px; font-size:18px; font-weight:700; text-align:center; line-height:1.35; }
+  .cover .nav { position:absolute; left:0; right:0; bottom:0; height:52px; background:#000; border-top:1px solid #1b1b1b; display:flex; justify-content:space-around; align-items:center; }
+  .cover .nav i { width:22px; height:22px; border-radius:6px; background:rgba(255,255,255,.25); }
+
+  .strip { display:flex; gap:14px; flex-wrap:wrap; }
+  .strip figure { margin:0; width:120px; text-align:center; }
+  .strip svg { width:120px; height:197px; }
+  .strip figcaption { color:var(--ash); font-size:12px; }
+  .btn { height:50px; border-radius:16px; display:flex; align-items:center; justify-content:center; gap:8px; font-weight:600; font-size:15px; cursor:pointer; border:0; width:100%; font-family:inherit; }
+  .btn.accent { background:var(--green); color:var(--ink); }
+  .btn.primary { background:var(--bone); color:var(--ink); }
+  .btn.glass { background:var(--glass); color:var(--ash); box-shadow:0 0 0 1px var(--hair) inset; }
+  .coin { display:inline-block; width:15px; height:15px; vertical-align:-2px; }
+  .tile.coins { cursor:pointer; }
+  .tile.coins b { display:flex; align-items:center; gap:6px; }
+  .tile.coins b .coin { width:18px; height:18px; }
+  .tile .plus { color:var(--green); }
+  .item.locked svg { opacity:.45; }
+  .item .price { position:absolute; top:6px; left:6px; display:flex; align-items:center; gap:3px; font-size:10px; font-weight:700; color:var(--ash); background:rgba(13,13,12,.6); border-radius:999px; padding:2px 6px 2px 4px; font-variant-numeric:tabular-nums; }
+  .item .price .gold { width:12px; height:12px; vertical-align:0; }
+  .balance .gold { width:17px; height:17px; } .buybar .gold { width:14px; height:14px; }
+  .item.trying { box-shadow:0 0 0 1.5px var(--bone) inset; }
+  .buybar { display:flex; align-items:center; gap:10px; padding-top:12px; border-top:1px solid var(--hair); margin-top:8px; }
+  .buybar .what { flex:1; line-height:1.25; } .buybar .what b { display:block; font-size:15px; } .buybar .what span { color:var(--ash); font-size:12px; }
+  .buybar .btn { width:auto; padding:0 18px; height:46px; }
+  .balance { position:absolute; top:14px; right:18px; display:flex; align-items:center; gap:5px; font-weight:700; font-variant-numeric:tabular-nums; font-size:14px; }
+  .short { position:absolute; left:0; right:0; bottom:0; background:var(--sheet); border-top-left-radius:28px; border-top-right-radius:28px; border-top:1px solid var(--hair); overflow:hidden; }
+  .short .body { position:relative; padding:20px 20px 18px; display:flex; flex-direction:column; gap:14px; }
+  .short h3 { margin:0; font-size:24px; letter-spacing:-.5px; display:flex; align-items:center; gap:8px; }
+  .short p { margin:0; color:var(--ash); font-size:13px; line-height:1.6; }
+  .rate { background:var(--glass); border:1px solid var(--hair); border-radius:16px; overflow:hidden; }
+  .rate div { display:flex; justify-content:space-between; padding:9px 14px; font-size:13px; font-variant-numeric:tabular-nums; border-top:1px solid var(--hair); }
+  .rate div:first-child { border-top:0; }
+  .rate div b { font-weight:600; } .rate .now { background:rgba(56,199,134,.08); } .rate .now b { color:var(--green); }
+  .bigicon { width:44px; height:44px; border-radius:50%; background:rgba(242,241,236,.08); display:flex; align-items:center; justify-content:center; }
+  .bigicon .coin { width:24px; height:24px; }
+  .gold { display:inline-block; width:20px; height:20px; vertical-align:-3px; }
+  .tile.coins b .gold { width:22px; height:22px; }
+  .coinveil { position:absolute; inset:0; z-index:30; backdrop-filter:blur(18px) saturate(.8); -webkit-backdrop-filter:blur(18px) saturate(.8); background:rgba(13,13,12,.42); opacity:0; transition:opacity .28s ease; }
+  .coinveil.show { opacity:1; }
+  .flycoin { position:absolute; z-index:31; left:0; top:0; transform-origin:0 0; pointer-events:none; filter:drop-shadow(0 10px 30px rgba(242,184,58,.35)); }
+  .flycoin svg { width:100%; height:100%; display:block; }
+  .cointext { position:absolute; z-index:31; left:28px; right:28px; text-align:center; opacity:0; transform:translateY(10px); transition:opacity .25s ease, transform .3s cubic-bezier(.2,.9,.3,1); pointer-events:none; }
+  .cointext.show { opacity:1; transform:none; }
+  .cointext b { display:block; font-size:17px; font-weight:600; letter-spacing:-.2px; color:var(--bone); line-height:1.35; }
+  .cointext span { display:block; margin-top:6px; font-size:14px; color:var(--ash); line-height:1.45; }
+  .notes { max-width:760px; color:var(--ash); } .notes li { margin:7px 0; } .notes b { color:var(--bone); font-weight:600; }
+  .guess { color:var(--amber); font-weight:600; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="goldFace" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFE38E"/><stop offset=".45" stop-color="#F2B83A"/><stop offset="1" stop-color="#C98A1E"/></linearGradient>
+  <linearGradient id="goldRim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E9A82A"/><stop offset="1" stop-color="#9A6512"/></linearGradient>
+</defs></svg>
+<h1>Dress the cat</h1>
+<p class="sub">Points become coins, earned by scrolling less and spent on clothes. The 13 unlockable cat photos go away. The wilting cat gets a body and three things to wear: a top (on its head), a body piece and a bottom. Whatever it wears shows on home, in the closet, on the block screen, and (top only) in the pill. Tap items in the closet sheet; drag the slider to watch the dressed cat wilt.</p>
+
+<div class="control"><div class="row">
+  <input id="mins" type="range" min="0" max="36" value="6" step="1">
+  <div class="readout"><b id="m">6 min</b> of a 30 min limit · <span id="stg"></span></div>
+</div></div>
+
+<h2>Home and the closet</h2>
+<div class="panels">
+  <div><div class="phone" id="home"></div><div class="label">Home. The "Cats" tray button becomes "Closet". The disc shows the whole cat now, not just the head.</div></div>
+  <div><div class="phone" id="closet"></div><div class="label">Closet sheet (TallSheet). Owned items apply as you tap. A locked item is tried on in the preview, and the bar at the bottom buys it. Try the crown, then the cap.</div></div>
+  <div><div class="phone" id="coins"></div><div class="label"><b style="color:var(--bone)">Tap the gold coin.</b> The same coin flies to the centre and grows, the whole screen blurs, two lines explain. Tap anywhere to put it back.</div></div>
+</div>
+
+<h2>Over Instagram</h2>
+<div class="panels">
+  <div><div class="phone" id="pill"></div><div class="label">The pill. Only the head fits at 30dp, so only the top shows.</div></div>
+  <div><div class="phone" id="block"></div><div class="label">Feed blocked. The dressed cat replaces the random cat photo, in its current state.</div></div>
+  <div><div class="phone" id="pillstrip" style="height:auto;padding-bottom:6px"></div><div class="label">The pill through the day, same top.</div></div>
+</div>
+
+<h2>The dressed cat wilting</h2>
+<div class="strip" id="strip"></div>
+
+<h2>What changes</h2>
+<ul class="notes">
+  <li><b>Goes away:</b> the cat photo gallery, the 13 cat images (app assets and <code>wilt_cat_*</code> drawables), cat unlocks in milestones, and the random photo on the nudge and block screens.</li>
+  <li><b>Stays:</b> the wilt itself. The clothes wilt with it: colours drain as the fur goes green, the hat slips as the ears droop, and once the limit is blown the outfit is grey and moth-eaten on a bone cat. <span class="guess">My guess; easy to keep clothes pristine instead.</span></li>
+  <li><b>Top</b> means headwear, because it is the one slot the pill can show. <span class="guess">My reading of "topwear"; if you meant a shirt, Body becomes fur colour and Top becomes the shirt.</span></li>
+  <li><b>Coins</b> replace points. Earned from minutes used only: 50 at 0 min, falling straight to 0 at 45 min. They land at midnight. Buying an item spends them; owned items swap for free.</li>
+  <li><b>Prices</b> run 100 to 900; one starter per slot is free (beanie, tee, shorts). <span class="guess">My call.</span></li>
+  <li><b>Native:</b> the pill and block screen are drawn by the accessibility service, which today uses six pre-rendered head PNGs. A dressed cat means drawing the cat in Kotlin (or rendering every combination), which is the real cost of this change.</li>
+</ul>
+
+<script src="rot-cat.js"></script>
+<script src="cat-figure.js"></script>
+<script>
+// ---------- the outfit ----------
+const ITEMS = {
+  top: [
+    { id: 'none', name: 'None' }, { id: 'beanie', name: 'Beanie' }, { id: 'cap', name: 'Cap' },
+    { id: 'crown', name: 'Crown' }, { id: 'party', name: 'Party hat' }, { id: 'flower', name: 'Flower' },
+    { id: 'phones', name: 'Headphones' }, { id: 'bow', name: 'Bow' }, { id: 'halo', name: 'Halo' },
+  ],
+  body: [
+    { id: 'none', name: 'None' }, { id: 'tee', name: 'Tee' }, { id: 'hoodie', name: 'Hoodie' },
+    { id: 'stripes', name: 'Stripes' }, { id: 'raincoat', name: 'Raincoat' }, { id: 'suit', name: 'Suit' },
+    { id: 'scarf', name: 'Scarf' },
+  ],
+  bottom: [
+    { id: 'none', name: 'None' }, { id: 'jeans', name: 'Jeans' }, { id: 'shorts', name: 'Shorts' },
+    { id: 'tutu', name: 'Tutu' }, { id: 'joggers', name: 'Joggers' }, { id: 'sneakers', name: 'Sneakers' },
+  ],
+};
+const outfit = { top: 'beanie', body: 'hoodie', bottom: 'jeans' };
+const PRICE = { top: { none: 0, beanie: 0, cap: 100, flower: 150, bow: 150, phones: 250, party: 300, crown: 600, halo: 900 },
+  body: { none: 0, tee: 0, hoodie: 150, stripes: 200, scarf: 250, raincoat: 350, suit: 600 },
+  bottom: { none: 0, shorts: 0, jeans: 150, joggers: 200, sneakers: 300, tutu: 400 } };
+const owned = { top: new Set(['none', 'beanie']), body: new Set(['none', 'tee', 'hoodie']), bottom: new Set(['none', 'shorts', 'jeans']) };
+const tryOn = { top: null, body: null, bottom: null };
+let coins = 340;
+const coinsFor = (mins) => Math.max(0, Math.min(50, Math.round(50 * (1 - mins / 45))));
+const goldCoin = `<svg class="gold" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="url(#goldRim)"/><circle cx="32" cy="32" r="26" fill="url(#goldFace)"/>
+  <circle cx="32" cy="32" r="21" fill="none" stroke="#B87A16" stroke-width="1.6" opacity=".55"/>
+  <path d="M21 41 C19 33 20 26 22 19 L28 25 C30 24.4 34 24.4 36 25 L42 19 C44 26 45 33 43 41 C40 45 24 45 21 41 Z" fill="#B87A16" opacity=".55"/>
+  <ellipse cx="22" cy="18" rx="9" ry="4.5" fill="#fff" opacity=".35" transform="rotate(-35 22 18)"/></svg>`;
+const coinIcon = `<svg class="coin" viewBox="0 0 24 24" fill="none" stroke="#F2F1EC" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/></svg>`;
+let tab = ['top', 'body', 'bottom'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'top';
+// The drawing lives in cat-figure.js. These keep the mockup's crops.
+function fullCat(t, o, view = '0 -24 256 420', headOnly = false) {
+  return fullFigure(t, o, { view, layers: headOnly ? PILL_LAYERS : FIGURE_LAYERS });
+}
+// Head only, for the pill: top shows, nothing else.
+function headOnly(t, o) {
+  return fullCat(t, o, '8 -20 240 240', true);
+}
+
+// ---------- screens ----------
+const $ = (id) => document.getElementById(id);
+const accent = (t) => t >= 1 ? '#D2542F' : t >= 0.65 ? '#E0913C' : '#38C786';
+const stateLine = (t, mins) => t >= 1 ? ['Walled off.', 'You hit 30m. Back at midnight.'] : t >= 0.65 ? ['Wilting fast.', `${30 - mins}m left today.`] : ['Looking good.', `${30 - mins}m left today.`];
+const shirtIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="#F2F1EC" stroke-width="1.8" stroke-linejoin="round"><path d="M8 3 L3 6 L5 11 L7 10 V21 H17 V10 L19 11 L21 6 L16 3 C15 5 9 5 8 3 Z"/></svg>`;
+
+function home(t, mins) {
+  const [title, sub] = stateLine(t, mins);
+  return `<div class="home">
+    <div class="topbar"><div class="brand">Wilt</div><div class="chip">Limit<b>30m</b></div></div>
+    <div class="hero"><div class="disc" style="--ring:${accent(t)}">${fullCat(t, outfit, '-6 -20 268 400')}</div>
+      <div class="state">${title}<small>${sub}</small></div></div>
+    <div class="tiles"><div class="tile"><b>4</b><span>DAYS CLEAN</span></div><div class="tile coins"><b>${goldCoin}${coins.toLocaleString()}</b><span>COINS · <span class="plus">+${coinsFor(mins)}</span></span></div></div>
+    <div class="tray"><div class="new">${shirtIcon}Closet</div><div>History</div><div>Apps</div></div>
+  </div>`;
+}
+const VIEWS = { top: '0 -36 256 260', body: '40 176 176 180', bottom: '50 280 156 110' };
+function closet(t, mins) {
+  const tiles = ITEMS[tab].map(it => {
+    const o = { top: 'none', body: 'none', bottom: 'none', [tab]: it.id };
+    const have = owned[tab].has(it.id), price = PRICE[tab][it.id];
+    const cls = [outfit[tab] === it.id ? 'on' : '', have ? '' : 'locked', tryOn[tab] === it.id ? 'trying' : ''].join(' ');
+    return `<button class="item ${cls}" data-id="${it.id}">${have ? '' : `<span class="price">${goldCoin}${price}</span>`}${fullCat(0, o, VIEWS[tab], tab === 'top')}<span>${it.name}</span></button>`;
+  }).join('');
+  const shown = { ...outfit };
+  for (const k of ['top', 'body', 'bottom']) if (tryOn[k]) shown[k] = tryOn[k];
+  const tr = tryOn[tab];
+  let bar = '';
+  if (tr) {
+    const price = PRICE[tab][tr], name = ITEMS[tab].find(i => i.id === tr).name, short = price - coins;
+    bar = `<div class="buybar"><div class="what"><b>${name}</b><span>${goldCoin} ${price} coins</span></div>${short > 0
+      ? `<button class="btn glass" disabled>${short} more to go</button>`
+      : `<button class="btn accent" data-buy="1">Buy</button>`}</div>`;
+  }
+  return `${home(t, mins)}<div class="scrim"></div>
+    <div class="sheet"><div class="glow"></div><div class="grab"></div><div class="balance">${goldCoin}${coins.toLocaleString()}</div><div class="body">
+      <div class="preview">${fullCat(0, shown, '0 -30 256 420')}</div>
+      <div class="kicker">Your cat</div>
+      <h3>Dress it up.</h3>
+      <p>It wears this everywhere: home, the pill, and the block screen. It still wilts in it.</p>
+      <div class="seg">${['top', 'body', 'bottom'].map(k => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+      <div class="grid">${tiles}</div>
+      ${bar}
+    </div></div>`;
+}
+function coinSheet(t, mins) { return home(t, mins); }
+
+// Shared-element: the tile's coin flies to the centre and grows; the screen blurs behind it.
+function openCoin(phone) {
+  if (phone.querySelector('.coinveil')) return;
+  const src = phone.querySelector('.tile.coins .gold');
+  const pr = phone.getBoundingClientRect(), r = src.getBoundingClientRect();
+  const from = { x: r.left - pr.left, y: r.top - pr.top, s: r.width };
+  const size = 128, to = { x: (pr.width - size) / 2, y: pr.height * 0.36 - size / 2, s: size };
+  const veil = document.createElement('div'); veil.className = 'coinveil';
+  const fly = document.createElement('div'); fly.className = 'flycoin';
+  fly.style.width = fly.style.height = size + 'px';
+  fly.innerHTML = goldCoin.replace('class="gold"', '');
+  const text = document.createElement('div'); text.className = 'cointext';
+  text.style.top = (to.y + size + 26) + 'px';
+  text.innerHTML = `<b>Scroll less, earn up to 50 a day.</b><span>Spend them on clothes in the Closet.</span>`;
+  phone.append(veil, fly, text);
+  src.style.visibility = 'hidden';
+  const k = from.s / size;
+  const anim = fly.animate([
+    { transform: `translate(${from.x}px, ${from.y}px) scale(${k}) rotate(0deg)` },
+    { transform: `translate(${to.x}px, ${to.y}px) scale(1) rotate(360deg)` },
+  ], { duration: 520, easing: 'cubic-bezier(.2,.9,.25,1.12)', fill: 'forwards' });
+  requestAnimationFrame(() => { veil.classList.add('show'); });
+  setTimeout(() => text.classList.add('show'), 260);
+  const close = () => {
+    veil.removeEventListener('click', close);
+    text.classList.remove('show'); veil.classList.remove('show');
+    fly.animate([
+      { transform: `translate(${to.x}px, ${to.y}px) scale(1) rotate(360deg)` },
+      { transform: `translate(${from.x}px, ${from.y}px) scale(${k}) rotate(0deg)` },
+    ], { duration: 380, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }).onfinish = () => {
+      src.style.visibility = ''; veil.remove(); fly.remove(); text.remove();
+    };
+  };
+  veil.addEventListener('click', close);
+}
+function pill(t, mins) {
+  return `<div class="reel"><div class="rail"><i></i><i></i><i></i></div></div>
+    <div class="pill" style="color:${t >= 1 ? '#D2542F' : t >= 0.65 ? '#E0913C' : '#F2F1EC'}">${headOnly(t, outfit)}${t >= 1 ? 'Blocked' : mins + 'm today'}</div>`;
+}
+function block(t) {
+  const line = t >= 1 ? "Feed's closed.<br>Your cat took the hit." : 'Nope.<br>Go do something else.';
+  return `<div class="cover">${fullCat(t, outfit, '-10 -30 276 420')}<div class="line">${line}</div><div class="nav"><i></i><i></i><i></i><i></i><i></i></div></div>`;
+}
+function pillStrip() {
+  return `<div class="pills">${[[0, 3], [0.5, 15], [0.8, 24], [0.95, 28.5], [1, 30]].map(([t, m]) =>
+    `<div class="pill" style="color:${t >= 1 ? '#D2542F' : t >= 0.65 ? '#E0913C' : '#F2F1EC'}">${headOnly(t, outfit)}${t >= 1 ? 'Blocked' : Math.round(m) + 'm today'}</div>`).join('')}</div>`;
+}
+function strip() {
+  return [[0, 'Fresh'], [0.45, 'Wilting'], [0.7, 'Mouldy'], [0.86, 'Rotting'], [0.95, 'Nearly gone'], [1, 'Gone']].map(([t, n]) =>
+    `<figure>${fullCat(t, outfit)}<figcaption>${n}</figcaption></figure>`).join('');
+}
+
+function render() {
+  const mins = +$('mins').value, t = mins / 30;
+  $('m').textContent = mins + ' min';
+  $('stg').textContent = stageName(t);
+  $('home').innerHTML = home(t, mins);
+  $('closet').innerHTML = closet(t, mins);
+  $('coins').innerHTML = coinSheet(t, mins);
+  $('pill').innerHTML = pill(t, mins);
+  $('block').innerHTML = block(t);
+  $('pillstrip').innerHTML = pillStrip();
+  $('strip').innerHTML = strip();
+}
+$('mins').addEventListener('input', render);
+for (const id of ['home', 'coins']) $(id).addEventListener('click', (e) => { if (e.target.closest('.tile.coins')) openCoin($(id)); });
+$('closet').addEventListener('click', (e) => {
+  const tb = e.target.closest('[data-tab]');
+  if (tb) { tab = tb.dataset.tab; render(); return; }
+  if (e.target.closest('[data-buy]')) {
+    const id = tryOn[tab]; coins -= PRICE[tab][id]; owned[tab].add(id); outfit[tab] = id; tryOn[tab] = null; render(); return;
+  }
+  const it = e.target.closest('.item');
+  if (!it) return;
+  const id = it.dataset.id;
+  if (owned[tab].has(id)) { outfit[tab] = id; tryOn[tab] = null; } else { tryOn[tab] = tryOn[tab] === id ? null : id; }
+  render();
+});
+render();
+if (location.hash === '#coin') setTimeout(() => openCoin($('coins')), 100);
+</script>
+</body>
+</html>
