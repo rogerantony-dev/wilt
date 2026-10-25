@@ -83,7 +83,7 @@ Nothing is recorded, logged, or transmitted. **There is no code anywhere in the 
 
 So it needs two permissions, both explained before either is requested:
 
-<p><img src="docs/screenshots/onboarding-4-permissions.png" width="255" alt="Onboarding screen explaining the two permissions the app needs"></p>
+<p><img src="docs/screenshots/onboarding-4-permissions.png" width="255" alt="Onboarding page reading almost there, with switches for draw over apps and the accessibility service"></p>
 
 ## Install
 

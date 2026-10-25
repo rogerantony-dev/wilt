@@ -183,7 +183,7 @@ Suggested upload order, since the first two or three carry the listing:
 
 1. `1-dashboard.png` — time spent, budget left, the mode switch
 2. `4-block-mode.png` — the other mode
-3. `2-cats.png` — the Closet: dress the cat with coins earned by scrolling less, the most visually distinctive screen (NOTE: this screenshot still shows the old cat gallery and needs recapturing)
+3. `2-closet.png` — the Closet: dress the cat with coins earned by scrolling less, the most visually distinctive screen
 4. `3-history.png` — the pattern over days
 5. `7-limit-picker.png` — that the limit is the user's choice
 
