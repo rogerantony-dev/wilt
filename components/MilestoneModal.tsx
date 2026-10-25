@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { FlameIcon, PawIcon } from "./icons";
+import { FlameIcon } from "./icons";
 
 import { C, Kicker } from "./console";
 import { Sheet } from "./Sheet";
@@ -13,50 +13,36 @@ function fmtLimit(min: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** Celebratory beat for a streak milestone or a batch of cat unlocks. */
+/** Celebratory beat for a streak milestone, with the offer to lower the limit. */
 export function MilestoneModal({
   visible,
-  kind,
   streak,
-  unlockedCats,
   levelDown,
   onAcceptLevelDown,
   onDismiss,
 }: {
   visible: boolean;
-  kind: "streak" | "cats" | null;
+  kind: "streak" | null;
   streak: number;
-  unlockedCats: number;
   levelDown: { from: number; to: number } | null;
   onAcceptLevelDown: () => void;
   onDismiss: () => void;
 }) {
-  const title =
-    kind === "streak"
-      ? `${streak} days clean.`
-      : unlockedCats === 1
-        ? "New cat unlocked."
-        : "New cats unlocked.";
-  const body =
-    kind === "streak"
-      ? "A full week under your limit. That is a real habit forming."
-      : "Your points earned you something better to look at than reels.";
-
   return (
     <Sheet visible={visible} onDismiss={onDismiss}>
       <View className="gap-5">
         <View className="gap-2">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-success-subtle">
-            {kind === "streak" ? <FlameIcon size={30} color={C.toxic} /> : <PawIcon size={30} color={C.toxic} />}
+            <FlameIcon size={30} color={C.toxic} />
           </View>
           <Kicker color={C.toxic} style={{ marginTop: 8 }}>
-            {kind === "streak" ? "Streak milestone" : "Reward"}
+            Streak milestone
           </Kicker>
           <Typography type="h3" style={{ letterSpacing: -0.5 }}>
-            {title}
+            {streak} days clean.
           </Typography>
           <Typography type="body-sm" muted className="leading-6">
-            {body}
+            A full week under your limit. That is a real habit forming.
           </Typography>
         </View>
 

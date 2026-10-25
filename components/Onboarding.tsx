@@ -52,7 +52,6 @@ import { Switch } from "./ui/switch";
 import { Typography } from "./ui/typography";
 
 import { Brand, C } from "./console";
-import { CATS } from "./cats";
 import { CatHead } from "./CatHead";
 import { DiscHero } from "./DiscHero";
 import { translateXScaleY } from "./catmatrix";

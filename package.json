@@ -8,6 +8,7 @@
     "@hugeicons/react-native": "^1.0.16",
     "clsx": "^2.1.1",
     "expo": "^54.0.0",
+    "expo-blur": "~15.0.8",
     "expo-dev-client": "~6.0.21",
     "expo-haptics": "~15.0.8",
     "expo-intent-launcher": "~13.0.8",
