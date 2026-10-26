@@ -110,6 +110,11 @@ export function OnboardingFlow({
 
   const isLast = page === PAGES - 1;
 
+  // The cold open is the feed alone; the field only rises as you swipe on.
+  const fieldIn = useAnimatedStyle(() => ({
+    opacity: width > 0 ? interpolate(scrollX.value, [0, width], [0, 1], Extrapolation.CLAMP) : 0,
+  }));
+
   // The wilt slide plays only while it is the one in place. Read off the
   // pager's offset rather than `page`, which the Next button sets before the
   // scroll has finished, so the loop starts the moment the slide lands and
@@ -153,8 +158,10 @@ export function OnboardingFlow({
     <View className="flex-1">
       {/* The same field as the home screen, so the first run and the
           dashboard are one place. It takes the chosen rung colour on the
-          mode page and stays a calm green elsewhere. */}
-      <AmbientField color={page === 2 && selMode === "guilt" ? limitColor(lim) : C.toxic} level={0.25} />
+          mode page and stays a calm green elsewhere, but never on the cold open. */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fieldIn]}>
+        <AmbientField color={page === 2 && selMode === "guilt" ? limitColor(lim) : C.toxic} level={0.25} />
+      </Animated.View>
       <View className="flex-1" onLayout={(e) => setHeight(e.nativeEvent.layout.height)}>
         <Animated.ScrollView
           ref={ref}
