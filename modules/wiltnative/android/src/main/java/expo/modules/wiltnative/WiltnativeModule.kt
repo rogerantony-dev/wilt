@@ -97,10 +97,25 @@ class WiltnativeModule : Module() {
 
     // After a payment pause: turn the service back on directly when the phone
     // has granted WRITE_SECURE_SETTINGS over adb (returns true), otherwise open
-    // Settings > Accessibility on Wilt's entry and return false.
+    // Settings > Accessibility on Wilt's entry and return false. The direct
+    // route goes through the app's PaymentResumeReceiver, which does the
+    // off-and-on write off the JS thread and keeps checking, retrying until
+    // the service has really connected; a single write here could be left
+    // "bound but never connected" with nothing to notice.
     Function("resumeAfterPayment") {
       val context = appContext.reactContext?.applicationContext ?: return@Function false
-      turnOnService(context)
+      if (!canWriteSecureSettings(context)) {
+        openServiceSettings(context)
+        return@Function false
+      }
+      val pkg = context.packageName
+      context.sendBroadcast(
+        android.content.Intent()
+          .setClassName(pkg, "$pkg.PaymentResumeReceiver")
+          .putExtra("attempt", 1)
+          .putExtra("now", true)
+      )
+      true
     }
 
     // Same, for any "turn it on" in the app (onboarding's switch included):

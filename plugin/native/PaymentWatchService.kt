@@ -53,6 +53,8 @@ class PaymentWatchService : Service() {
         since = System.currentTimeMillis()
         pausedPkg = pkg
         done = false
+        finished = false
+        run++
         val notification = PaymentPause.pausedNotification(this, label)
         if (notification == null) { stopSelf(); return START_NOT_STICKY }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -75,13 +77,32 @@ class PaymentWatchService : Service() {
         val front = frontPackage(this, since) ?: return
         if (front == pausedPkg) return
         Log.i(TAG, "left $pausedPkg for $front; turning the service back on")
-        finish("left the app")
+        // Stop polling, but stay a foreground service until the resume is
+        // written. Samsung's freezer (Freecess) freezes a background process
+        // within a fraction of a second of it leaving the foreground; ending
+        // the watch first froze the resume between its off and on writes, and
+        // Wilt stayed off until the alarm thawed it minutes later.
+        done = true
+        handler.removeCallbacksAndMessages(null)
         // enableService sleeps between its off and on writes; keep that off the main thread.
-        Thread { PaymentPause.resumeNow(this, "left the app") }.start()
+        val mine = run
+        Thread {
+            try {
+                PaymentPause.resumeNow(this, "left the app")
+            } finally {
+                // A new pause may have restarted the watch meanwhile; leave that one running.
+                handler.post { if (run == mine) finish("left the app") }
+            }
+        }.start()
     }
 
+    private var finished = false
+    /** Bumped on every start, so a finished resume only ends its own watch. */
+    private var run = 0
+
     private fun finish(reason: String) {
-        if (done) return
+        if (finished) return
+        finished = true
         done = true
         Log.d(TAG, "watch over: $reason")
         handler.removeCallbacksAndMessages(null)

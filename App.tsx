@@ -149,7 +149,11 @@ export default function App() {
 
   const overlayDone = status?.overlay === true;
   const accessibilityDone = status?.accessibilityRunning === true;
-  const allReady = overlayDone && accessibilityDone;
+  // Paused for a payment app on a phone where Wilt may turn itself back on:
+  // syncStatus has already asked it to, so this is a beat of reconnecting,
+  // not a state to show. The dashboard stays up instead of the pause screen.
+  const resumingFromPause = !accessibilityDone && !!status?.paymentPauseApp && status.canAutoResume;
+  const allReady = overlayDone && (accessibilityDone || resumingFromPause);
   // Whether the overlay permission was already granted when the app came up.
   // A fresh install has neither permission, so a missing overlay at launch
   // means this run goes through onboarding: hold on its send-off screen until
@@ -160,15 +164,11 @@ export default function App() {
   if (status && setUpAtLaunch.current === null) setUpAtLaunch.current = overlayDone;
   const [onboardingFinished, setOnboardingFinished] = useState(false);
   const showDashboard = allReady && (setUpAtLaunch.current !== false || onboardingFinished);
-  // The service switched itself off for a payment app; offer the way back on
-  // instead of dropping the user into first-run setup.
-  const paymentPauseApp = !accessibilityDone ? status?.paymentPauseApp ?? null : null;
-
-  const resumeFromPause = useCallback(() => {
-    // Direct re-enable (adb-granted secure settings) reflects in status within a
-    // beat; the Settings route reflects on the next app resume via syncStatus.
-    if (resumeAfterPayment()) syncStatus();
-  }, [syncStatus]);
+  // The service switched itself off for a payment app and only the user can
+  // turn it back on (no adb grant): offer the way back instead of dropping
+  // the user into first-run setup.
+  const paymentPauseApp =
+    !accessibilityDone && !resumingFromPause ? status?.paymentPauseApp ?? null : null;
 
   // Onboarding's switch: on directly where the app may do it, else Settings.
   const turnOn = useCallback(() => {
@@ -340,9 +340,7 @@ export default function App() {
         ) : paymentPauseApp ? (
           <PaymentPauseScreen
             app={paymentPauseApp}
-            canAutoResume={status?.canAutoResume === true}
-            resumesOnLeave={status?.resumesOnLeave === true}
-            onResume={resumeFromPause}
+            onResume={resumeAfterPayment}
             onDismiss={dismissPause}
           />
         ) : (

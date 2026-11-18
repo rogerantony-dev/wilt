@@ -244,7 +244,10 @@ object PaymentPause {
             .putString(PREF_PACKAGE, pkg)
             .putString(PREF_LABEL, label)
             .putLong(PREF_AT, System.currentTimeMillis())
-            .apply()
+            // A fresh pause: whatever resume ran before it is over, so the next
+            // one must not be held off as a duplicate ([claimResume]).
+            .remove(PREF_RESUME_CLAIMED_AT)
+            .commit()
         notifyPaused(context, label)
         if (!canWriteSecureSettings(context)) return
         val watching = PaymentWatchService.canWatch(context) && PaymentWatchService.start(context, pkg, label)
@@ -268,9 +271,31 @@ object PaymentPause {
 
     /** Turn the service back on now and verify it took, like the alarm does. */
     fun resumeNow(context: Context, reason: String) {
+        if (!claimResume(context)) { Log.d(TAG, "resume ($reason) skipped: one just ran"); return }
         Log.i(TAG, "resuming after payment pause: $reason")
         if (enableService(context)) scheduleVerify(context, attempt = 1)
     }
+
+    /** How long a resume holds off others: the off-and-on write plus the rebind. */
+    private const val RESUME_DEDUPE_MS = 4000L
+
+    /**
+     * Several things notice the user is back at once (the leave-the-app watch,
+     * and the app syncing on mount and on coming to the front). Each resume
+     * turns the service off and on, so a second one right behind the first
+     * knocks the freshly connected service off again. The first caller wins;
+     * the others within [RESUME_DEDUPE_MS] stand down. The verify alarm is
+     * not gated: it runs a minute later and only acts if nothing connected.
+     */
+    fun claimResume(context: Context): Boolean = synchronized(this) {
+        val p = prefs(context)
+        val now = System.currentTimeMillis()
+        if (now - p.getLong(PREF_RESUME_CLAIMED_AT, 0L) in 0 until RESUME_DEDUPE_MS) return false
+        p.edit().putLong(PREF_RESUME_CLAIMED_AT, now).commit()
+        true
+    }
+
+    private const val PREF_RESUME_CLAIMED_AT = "resumeClaimedAt"
 
     fun pausedPackage(context: Context): String? = prefs(context).getString(PREF_PACKAGE, null)
 
@@ -389,6 +414,8 @@ object PaymentPause {
     /** Ten minutes of rebind attempts; waiting on the payment app does not count. */
     private const val MAX_RETRIES = 10
     const val EXTRA_ATTEMPT = "attempt"
+    /** Sent by the app when it is opened: Wilt is in front, so the payment app is not. */
+    const val EXTRA_NOW = "now"
 
     /**
      * After a resume attempt, look again a minute later: if the service has
@@ -506,8 +533,9 @@ class PaymentResumeReceiver : BroadcastReceiver() {
         val paused = PaymentPause.pausedPackage(context)
         val attempt = intent?.getIntExtra(PaymentPause.EXTRA_ATTEMPT, 0) ?: 0
         val back = PaymentPause.reconnectedSinceAttempt(context)
-        val stillThere = paused != null && PaymentPause.stillInPausedApp(context) == true
-        Log.d("Wilt", "auto-resume alarm: paused=$paused attempt=$attempt reconnected=$back stillThere=$stillThere")
+        val now = intent?.getBooleanExtra(PaymentPause.EXTRA_NOW, false) == true
+        val stillThere = !now && paused != null && PaymentPause.stillInPausedApp(context) == true
+        Log.d("Wilt", "auto-resume: paused=$paused attempt=$attempt now=$now reconnected=$back stillThere=$stillThere")
         if (back || PaymentPause.leftOff(context)) return
         // A restore after a reboot or update carries no pause; it only verifies.
         if (paused == null && attempt == 0) return
@@ -515,6 +543,8 @@ class PaymentResumeReceiver : BroadcastReceiver() {
             PaymentPause.scheduleResume(context, PaymentPause.STILL_THERE_RECHECK_MS, attempt)
             return
         }
+        // Opened while a resume is already under way (the watch saw the same switch).
+        if (now && !PaymentPause.claimResume(context)) return
         val pending = goAsync()
         Thread {
             try {
