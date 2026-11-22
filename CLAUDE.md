@@ -7,13 +7,13 @@ Android app (Expo + React Native) that counts and blocks Instagram Reels, YouTub
 ## Where things live
 
 - `App.tsx`: the home screen (dashboard), and it owns every sheet.
-- `components/`: screens and pieces (`Onboarding`, `HistoryScreen`, `ClosetSheet`, `AppsSheet`, `MilestoneModal`, `PaymentPause`). Pure logic sits next to them with Jest tests (`progress.ts`, `timeleft.ts`, `limitramp.ts`, `nudges.ts`, ...).
+- `components/`: screens and pieces (`Onboarding`, `HistoryScreen`, `ClosetSheet`, `AppsSheet`, `MilestoneModal`). Pure logic sits next to them with Jest tests (`progress.ts`, `timeleft.ts`, `limitramp.ts`, `nudges.ts`, ...).
 - `components/ui/`: vendored PanelUI primitives (Button, Tabs, Switch, Slider, BottomSheet, Text, Typography...). Add more with `npx panelui-cli@latest add <name> --yes`. Never run `init` again, because it rewrites `global.css`.
 - `components/kit.tsx`: Wilt's button levels and surfaces. `components/console.tsx`: colour constants `C`, `Brand`, `Kicker`, `Segmented`. `components/icons.tsx`: the only icon set.
 - `lib/haptics.ts`: the haptic vocabulary.
 - The dressed cat: `components/closet.ts` is the catalogue and prices (mirrored by value in `modules/wiltnative/.../Closet.kt`); `components/catshapes.ts` is the pure figure geometry, drawn by `components/CatFigure.tsx`. `catshapes.ts` is the RN port of `design-previews/cat-figure.js`, which is canonical and renders the PNG layers the service draws (`bash scripts/render-cat-layers.sh`, into `plugin/native/res/drawable-nodpi` so Android never rescales them, read by `plugin/native/CatFigureLayers.kt`). **Change `catshapes.ts` and `cat-figure.js` together**, then re-render the layers. The fur colour (`FURS` in `catdecay.ts` and `rot-cat.js`, the closet's `fur` slot) recolours only the base, paws and head layers, so clothes never draw fur: a sleeved body item gets its paws back from the separate paws layer (`SLEEVED`). Coins live in `components/progress.ts` (`GoldCoin.tsx`, `CoinExplainer.tsx` for the UI); they depend on minutes used only, never on the limit.
 - `modules/wiltnative/`: the JS to native bridge (`index.ts`, `WiltnativeModule.kt`) and `Surfaces.kt`, which holds the per-surface guard toggles shared with the service.
-- `plugin/native/`: the accessibility service (`ReelAccessibilityService.kt`), payment pause, widget and resources. **`android/` is generated and gitignored.** Edit `plugin/native/`. `plugin/withReelCounter.js` copies these files in at prebuild.
+- `plugin/native/`: the accessibility service (`ReelAccessibilityService.kt`), payment-app detection (`PaymentPause.kt`), widget and resources. **`android/` is generated and gitignored.** Edit `plugin/native/`. `plugin/withReelCounter.js` copies these files in at prebuild.
 - State: one SharedPreferences file, `wilt_reels`. The service writes it, the bridge reads it, and JS never stores its own copy.
 
 ## Design system ("Quiet")
@@ -48,7 +48,7 @@ Dark first, minimal, a lot of empty space. There is one meaningful colour per sc
 
 **Choices:** segmented `Tabs` via `Segmented` (console.tsx) or the home `ModeSwitch`. Sliders use `LimitSlider`.
 
-**Native overlays match the app.** The nudge and limit sheets drawn over Instagram/YouTube are built from the `sheet*` helpers in `ReelAccessibilityService.kt`. They copy the tokens above by value, so change the two together. Overlay windows must never stay attached outside Instagram/YouTube, because payment apps refuse to work while one exists. The in-app pill, cover and tray follow the same palette.
+**Native overlays match the app.** The nudge and limit sheets drawn over Instagram/YouTube are built from the `sheet*` helpers in `ReelAccessibilityService.kt`. They copy the tokens above by value, so change the two together. Overlay windows must never stay attached outside Instagram/YouTube, because payment apps refuse to work while one exists. The service itself stays on in payment apps: Paytm only objects to accessibility services the Play Store did not install, so test local builds with `pm install -i com.android.vending`. The in-app pill, cover and tray follow the same palette.
 
 **Layout:** the home screen never scrolls. The hero takes the free height and the controls anchor to the bottom. Side padding is `px-6`.
 

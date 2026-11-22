@@ -2,8 +2,6 @@ package com.rogerantony.wilt
 
 import android.Manifest
 import android.app.AlarmManager
-import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -12,35 +10,29 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 
 /**
- * Payment apps refuse to run while a third-party accessibility service is
- * enabled. Paytm, for one, shows "Suspicious App Detected" naming Wilt and
- * stops on the amount screen. That is a check on the enabled-services list
- * itself (verified on device with zero Wilt overlay windows attached), so no
- * overlay or event-filter change can satisfy it. The only thing that does is
- * the service not being enabled while the payment app is up.
+ * Payment apps, and turning the service back on after a reboot or update.
  *
- * So: when one of the [paymentApps] found on the phone comes to the
- * foreground, the service records the pause in prefs, posts a notification,
- * and calls disableSelf(). Nothing else turns it off. Turning back on is
- * normally the user's job (Android gives an app no way to re-enable its own
- * service), which the app makes a one-tap trip to the right settings screen.
- * On a phone where WRITE_SECURE_SETTINGS has been granted over adb, Wilt
- * re-enables itself: when the app is opened, the moment the user leaves the
- * payment app when Usage access is granted too ([PaymentWatchService]), and
- * from an alarm that keeps checking until the service is back.
+ * Wilt used to switch its accessibility service off whenever a payment app
+ * came to the front, because Paytm showed "Suspicious App Detected" naming it.
+ * Tested on the A54 (2026-11-22) with the same APK and the service left on:
+ * installed by the Play Store, Paytm and Google Pay both went through to the
+ * UPI PIN screen; installed over adb, Paytm stopped at the amount screen and
+ * Google Pay still let it through. Paytm trusts accessibility services the
+ * Play Store installed and blocks the rest, and Wilt ships through Play, so
+ * the service now stays on. Payment apps are still recognised ([paymentApps])
+ * so that every overlay comes down over them (their tapjacking checks refuse
+ * to pay while any foreign window is attached) and so an added app can never
+ * be one of them.
  */
 object PaymentPause {
 
     /**
-     * UPI and banking apps known to block, or likely to. Package to app label.
-     * Detection ([paymentApps]) finds most of these on its own; the list
+     * UPI and banking apps. Package to app label. Detection ([paymentApps]) finds most of these on its own; the list
      * catches the ones it cannot tell from the outside (no upi:// handler, no
      * telling name), and a package that is not installed costs nothing.
      */
@@ -90,21 +82,8 @@ object PaymentPause {
     )
 
     private const val TAG = "Wilt"
-
-    const val PREF_PACKAGE = "paymentPausePackage"
-    const val PREF_LABEL = "paymentPauseLabel"
-    const val PREF_AT = "paymentPausedAt"
-    /** Set by "Leave it off for now", cleared when the service connects again. */
-    const val PREF_LEFT_OFF = "serviceLeftOff"
-
-    private const val CHANNEL_ID = "wilt_payment_pause"
-    const val NOTIFICATION_ID = 7031
-    private const val RESUME_REQUEST = 7032
-    private const val AUTO_RESUME_AFTER_MS = 4 * 60 * 1000L
-    /** First alarm when the watch is running: just after Android ends it. */
-    private const val WATCH_HANDOFF_MS = 3 * 60 * 1000L
-    /** How often the alarm looks again while the payment app is still in front. */
-    const val STILL_THERE_RECHECK_MS = 30 * 1000L
+    /** Request code of the restore check's alarm (the same one the old payment resume used). */
+    private const val VERIFY_REQUEST = 7032
 
     // --- Finding payment apps ------------------------------------------------------
 
@@ -121,7 +100,7 @@ object PaymentPause {
     }
 
     /**
-     * Every installed app Wilt steps aside for, found on the phone rather
+     * Every installed payment app, found on the phone rather
      * than listed: anything that takes upi:// payment links (every UPI app and
      * most bank apps), anything whose name or package says bank, UPI, pay or
      * wallet, and the [known] apps. Worked out once, in the background (it
@@ -233,99 +212,34 @@ object PaymentPause {
     fun serviceComponent(context: Context): ComponentName =
         ComponentName(context, ReelAccessibilityService::class.java)
 
+    /** Notification id the old payment pause posted under. */
+    private const val OLD_PAUSE_NOTIFICATION_ID = 7031
+
     /**
-     * Record the pause before the service disables itself. With the adb grants
-     * in place this also arms the way back: the leave-the-app watch when Usage
-     * access allows it, and the alarm always, which takes over once the watch
-     * runs out (Android caps it at about three minutes).
+     * Clear what the old payment pause (1.10.2 and earlier) may have left
+     * behind: its record in prefs and its "paused for" notification.
      */
-    fun markPaused(context: Context, pkg: String, label: String = label(context, pkg)) {
-        prefs(context).edit()
-            .putString(PREF_PACKAGE, pkg)
-            .putString(PREF_LABEL, label)
-            .putLong(PREF_AT, System.currentTimeMillis())
-            // A fresh pause: whatever resume ran before it is over, so the next
-            // one must not be held off as a duplicate ([claimResume]).
-            .remove(PREF_RESUME_CLAIMED_AT)
-            .commit()
-        notifyPaused(context, label)
-        if (!canWriteSecureSettings(context)) return
-        val watching = PaymentWatchService.canWatch(context) && PaymentWatchService.start(context, pkg, label)
-        scheduleResume(context, if (watching) WATCH_HANDOFF_MS else AUTO_RESUME_AFTER_MS, attempt = 0)
-    }
-
-    /** Both grants present: the service comes back as soon as the user leaves the app. */
-    fun resumesOnLeave(context: Context): Boolean =
-        canWriteSecureSettings(context) && PaymentWatchService.canWatch(context)
-
-    /** The service is back on: forget the pause and its reminders. */
     fun clearPaused(context: Context) {
         prefs(context).edit()
-            .remove(PREF_PACKAGE).remove(PREF_LABEL).remove(PREF_AT).remove(PREF_LEFT_OFF)
+            .remove("paymentPausePackage").remove("paymentPauseLabel").remove("paymentPausedAt")
+            .remove("serviceLeftOff").remove("resumeClaimedAt")
             .apply()
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager)
-            ?.cancel(NOTIFICATION_ID)
-        cancelAutoResume(context)
-        PaymentWatchService.stop(context)
+            ?.cancel(OLD_PAUSE_NOTIFICATION_ID)
     }
-
-    /** Turn the service back on now and verify it took, like the alarm does. */
-    fun resumeNow(context: Context, reason: String) {
-        if (!claimResume(context)) { Log.d(TAG, "resume ($reason) skipped: one just ran"); return }
-        Log.i(TAG, "resuming after payment pause: $reason")
-        if (enableService(context)) scheduleVerify(context, attempt = 1)
-    }
-
-    /** How long a resume holds off others: the off-and-on write plus the rebind. */
-    private const val RESUME_DEDUPE_MS = 4000L
 
     /**
-     * Several things notice the user is back at once (the leave-the-app watch,
-     * and the app syncing on mount and on coming to the front). Each resume
-     * turns the service off and on, so a second one right behind the first
-     * knocks the freshly connected service off again. The first caller wins;
-     * the others within [RESUME_DEDUPE_MS] stand down. The verify alarm is
-     * not gated: it runs a minute later and only acts if nothing connected.
-     */
-    fun claimResume(context: Context): Boolean = synchronized(this) {
-        val p = prefs(context)
-        val now = System.currentTimeMillis()
-        if (now - p.getLong(PREF_RESUME_CLAIMED_AT, 0L) in 0 until RESUME_DEDUPE_MS) return false
-        p.edit().putLong(PREF_RESUME_CLAIMED_AT, now).commit()
-        true
-    }
-
-    private const val PREF_RESUME_CLAIMED_AT = "resumeClaimedAt"
-
-    fun pausedPackage(context: Context): String? = prefs(context).getString(PREF_PACKAGE, null)
-
-    fun leftOff(context: Context): Boolean = prefs(context).getBoolean(PREF_LEFT_OFF, false)
-
-    /**
-     * After a reboot or an app update: put the service back if it was set up
-     * and the user did not choose to leave it off. An update can drop it from
-     * the enabled list or leave it bound but never connected; [enableService]
-     * turns it off and on, which fixes both. Blocks for half a second.
+     * After a reboot or an app update: put the service back if it was set up.
+     * An update can drop it from the enabled list or leave it bound but never
+     * connected; [enableService] turns it off and on, which fixes both. Only
+     * with WRITE_SECURE_SETTINGS, which is granted over adb, never by Play.
+     * Blocks for half a second.
      */
     fun restore(context: Context, reason: String) {
-        val p = prefs(context)
-        val setUp = p.getLong("lastConnectedAt", 0L) > 0L
-        if (!setUp || leftOff(context) || !canWriteSecureSettings(context)) return
+        val setUp = prefs(context).getLong("lastConnectedAt", 0L) > 0L
+        if (!setUp || !canWriteSecureSettings(context)) return
         Log.i(TAG, "restoring the accessibility service: $reason")
         if (enableService(context)) scheduleVerify(context, attempt = 1)
-    }
-
-    /**
-     * True while the paused-for app is still in front, as far as Usage access
-     * can tell: no other app has come up since the pause. Null without Usage
-     * access, when there is no telling.
-     */
-    fun stillInPausedApp(context: Context): Boolean? {
-        if (!PaymentWatchService.canWatch(context)) return null
-        val pkg = pausedPackage(context) ?: return false
-        val since = prefs(context).getLong(PREF_AT, 0L)
-        val front = PaymentWatchService.frontPackage(context, since) ?: return true
-        return front == pkg
     }
 
     // --- Re-enabling -------------------------------------------------------------
@@ -375,176 +289,49 @@ object PaymentPause {
 
     private const val PREF_RESUME_TRIED_AT = "resumeTriedAt"
 
-    /**
-     * Heartbeat the service writes in onServiceConnected; newer than the last
-     * attempt to turn it on (the pause itself, or a [restore]) means it is back.
-     */
+    /** Heartbeat the service writes in onServiceConnected, newer than the last attempt to turn it on. */
     fun reconnectedSinceAttempt(context: Context): Boolean {
         val p = prefs(context)
-        val since = maxOf(p.getLong(PREF_AT, 0L), p.getLong(PREF_RESUME_TRIED_AT, 0L))
-        return p.getLong("lastConnectedAt", 0L) > since
+        return p.getLong("lastConnectedAt", 0L) > p.getLong(PREF_RESUME_TRIED_AT, 0L)
     }
 
-    /**
-     * Open Settings > Accessibility with Wilt's service highlighted, so turning
-     * it back on is one tap rather than a hunt through the list. The fragment
-     * extras are honoured by AOSP and One UI; other skins fall back to the plain
-     * accessibility list.
-     */
-    fun openServiceSettings(context: Context) {
-        val id = serviceComponent(context).flattenToString()
-        val args = Bundle().apply { putString(":settings:fragment_args_key", id) }
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            putExtra(":settings:fragment_args_key", id)
-            putExtra(":settings:show_fragment_args", args)
-        }
-        runCatching { context.startActivity(intent) }
-    }
-
-    /**
-     * Exact when the app is allowed exact alarms (Settings > Apps > Special
-     * access > Alarms and reminders, or `appops set <pkg> SCHEDULE_EXACT_ALARM
-     * allow` over adb), since only exact alarms are exempt from Battery Saver
-     * and standby deferrals: on device an inexact 4-minute alarm fired after 11.
-     * Otherwise allow-while-idle, which is at least delivered eventually; a plain
-     * set() from a background app is held indefinitely under Battery Saver.
-     */
     private const val VERIFY_AFTER_MS = 60 * 1000L
-    /** Ten minutes of rebind attempts; waiting on the payment app does not count. */
+    /** Ten minutes of rebind attempts. */
     private const val MAX_RETRIES = 10
     const val EXTRA_ATTEMPT = "attempt"
-    /** Sent by the app when it is opened: Wilt is in front, so the payment app is not. */
-    const val EXTRA_NOW = "now"
 
     /**
-     * After a resume attempt, look again a minute later: if the service has
-     * not written its heartbeat since, the rebind did not take and the attempt
-     * is repeated, up to [MAX_RETRIES] times.
+     * After a restore, look again a minute later: if the service has not
+     * written its heartbeat since, the rebind did not take and the attempt is
+     * repeated, up to [MAX_RETRIES] times. Allow-while-idle so Battery Saver
+     * cannot hold it indefinitely.
      */
     fun scheduleVerify(context: Context, attempt: Int) {
-        if (attempt >= MAX_RETRIES) { Log.w(TAG, "auto-resume gave up after $attempt attempts"); return }
-        scheduleResume(context, VERIFY_AFTER_MS, attempt)
-    }
-
-    fun scheduleResume(context: Context, delayMs: Long, attempt: Int) {
+        if (attempt >= MAX_RETRIES) { Log.w(TAG, "restore gave up after $attempt attempts"); return }
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val at = System.currentTimeMillis() + delayMs
-        val pending = resumePendingIntent(context, attempt)
-        val exact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarm.canScheduleExactAlarms()
+        val pending = PendingIntent.getBroadcast(
+            context,
+            VERIFY_REQUEST,
+            Intent(context, ServiceVerifyReceiver::class.java).putExtra(EXTRA_ATTEMPT, attempt),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         runCatching {
-            if (exact) alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-            else alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-        }.onFailure {
-            Log.w(TAG, "exact alarm refused, falling back", it)
-            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-        }
-        Log.d(TAG, "auto-resume scheduled in ${delayMs / 1000}s, attempt=$attempt, exact=$exact")
-    }
-
-    private fun cancelAutoResume(context: Context) {
-        val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        alarm.cancel(resumePendingIntent(context, 0))
-    }
-
-    /** One pending intent for the whole chain, so a newer schedule replaces an older one. */
-    private fun resumePendingIntent(context: Context, attempt: Int): PendingIntent =
-        PendingIntent.getBroadcast(
-            context,
-            RESUME_REQUEST,
-            Intent(context, PaymentResumeReceiver::class.java).putExtra(EXTRA_ATTEMPT, attempt),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-    // --- Notification ------------------------------------------------------------
-
-    /**
-     * The one signal the user gets that Wilt is off. Needs POST_NOTIFICATIONS
-     * on Android 13+; the app asks for it once the dashboard is up. Tapping opens
-     * Wilt, whose resume screen does the rest.
-     */
-    private fun notifyPaused(context: Context, appLabel: String) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            ?: return
-        val notification = pausedNotification(context, appLabel) ?: return
-        runCatching { manager.notify(NOTIFICATION_ID, notification) }
-    }
-
-    /** The pause notification; also what [PaymentWatchService] runs in the foreground under. */
-    fun pausedNotification(context: Context, appLabel: String): Notification? {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            ?: return null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Paused for payments",
-                    NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply {
-                    description = "Reminds you to turn Wilt back on after using a payment app."
-                }
-            )
-        }
-        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
-            ?: return null
-        val tap = PendingIntent.getActivity(
-            context,
-            NOTIFICATION_ID,
-            launch,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val auto = canWriteSecureSettings(context)
-        val body = if (auto && PaymentWatchService.canWatch(context)) {
-            "$appLabel blocks payments while Wilt is on. It comes back on its own as soon as you leave $appLabel, or tap to turn it on now."
-        } else if (auto) {
-            "$appLabel blocks payments while Wilt is on. It comes back on its own in 4 minutes, or when you open Wilt."
-        } else {
-            "$appLabel blocks payments while Wilt is on. Tap to turn it back on when you are done."
-        }
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(context, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(context)
-        }
-        return builder
-            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentTitle("Wilt paused for $appLabel")
-            .setContentText(body)
-            .setStyle(Notification.BigTextStyle().bigText(body))
-            .setContentIntent(tap)
-            .setAutoCancel(true)
-            .setOngoing(!auto)
-            .build()
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + VERIFY_AFTER_MS, pending)
+        }.onFailure { Log.w(TAG, "restore check not scheduled", it) }
     }
 }
 
 /**
- * Fires after a payment pause (and after each resume attempt), only on phones
- * where the app can write secure settings. While Usage access shows the
- * payment app still in front it simply looks again shortly, so the service is
- * never switched on in the middle of a payment. Otherwise it re-enables the
- * service and checks a minute later that it really connected, so a pause the
- * user forgot about does not switch counting off for the rest of the day.
+ * Fires a minute after a [PaymentPause.restore]: if the service has not
+ * connected since, the off-and-on write did not take and is repeated, up to
+ * ten times.
  */
-class PaymentResumeReceiver : BroadcastReceiver() {
+class ServiceVerifyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        val paused = PaymentPause.pausedPackage(context)
         val attempt = intent?.getIntExtra(PaymentPause.EXTRA_ATTEMPT, 0) ?: 0
         val back = PaymentPause.reconnectedSinceAttempt(context)
-        val now = intent?.getBooleanExtra(PaymentPause.EXTRA_NOW, false) == true
-        val stillThere = !now && paused != null && PaymentPause.stillInPausedApp(context) == true
-        Log.d("Wilt", "auto-resume: paused=$paused attempt=$attempt now=$now reconnected=$back stillThere=$stillThere")
-        if (back || PaymentPause.leftOff(context)) return
-        // A restore after a reboot or update carries no pause; it only verifies.
-        if (paused == null && attempt == 0) return
-        if (stillThere) {
-            PaymentPause.scheduleResume(context, PaymentPause.STILL_THERE_RECHECK_MS, attempt)
-            return
-        }
-        // Opened while a resume is already under way (the watch saw the same switch).
-        if (now && !PaymentPause.claimResume(context)) return
+        Log.d("Wilt", "restore check: attempt=$attempt reconnected=$back")
+        if (back || attempt == 0) return
         val pending = goAsync()
         Thread {
             try {

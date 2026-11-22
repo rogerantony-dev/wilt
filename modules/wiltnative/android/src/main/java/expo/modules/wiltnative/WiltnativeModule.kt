@@ -19,8 +19,6 @@ import java.util.Locale
  */
 class WiltnativeModule : Module() {
   private val MAX_EXTRA_MINUTES = 3
-  // PaymentPause.NOTIFICATION_ID in the app; this module cannot see app classes.
-  private val PAUSE_NOTIFICATION_ID = 7031
 
   override fun definition() = ModuleDefinition {
     Name("Wilt")
@@ -45,9 +43,7 @@ class WiltnativeModule : Module() {
         "outfit" to Closet.outfit(prefs(context)),
         "ownedItems" to Closet.owned(prefs(context)).toList(),
         "coinsSpent" to Closet.coinsSpent(prefs(context)),
-        "paymentPauseApp" to paymentPauseApp(context),
         "canAutoResume" to canWriteSecureSettings(context),
-        "resumesOnLeave" to (canWriteSecureSettings(context) && canReadUsage(context)),
         "surfaces" to (Surfaces.ALL + Surfaces.customApps(prefs(context)).map { Surfaces.appKey(it) })
           .associateWith { Surfaces.isGuarded(prefs(context), it) },
         "customApps" to Surfaces.customApps(prefs(context))
@@ -95,52 +91,11 @@ class WiltnativeModule : Module() {
       Surfaces.set(prefs(context), key, on)
     }
 
-    // After a payment pause: turn the service back on directly when the phone
-    // has granted WRITE_SECURE_SETTINGS over adb (returns true), otherwise open
-    // Settings > Accessibility on Wilt's entry and return false. The direct
-    // route goes through the app's PaymentResumeReceiver, which does the
-    // off-and-on write off the JS thread and keeps checking, retrying until
-    // the service has really connected; a single write here could be left
-    // "bound but never connected" with nothing to notice.
-    Function("resumeAfterPayment") {
-      val context = appContext.reactContext?.applicationContext ?: return@Function false
-      if (!canWriteSecureSettings(context)) {
-        openServiceSettings(context)
-        return@Function false
-      }
-      val pkg = context.packageName
-      context.sendBroadcast(
-        android.content.Intent()
-          .setClassName(pkg, "$pkg.PaymentResumeReceiver")
-          .putExtra("attempt", 1)
-          .putExtra("now", true)
-      )
-      true
-    }
-
-    // Same, for any "turn it on" in the app (onboarding's switch included):
-    // the service comes back without a trip to Settings whenever it can.
+    // Any "turn it on" in the app (onboarding's switch included): on directly
+    // when WRITE_SECURE_SETTINGS was granted over adb, else Settings.
     Function("turnOnService") {
       val context = appContext.reactContext?.applicationContext ?: return@Function false
       turnOnService(context)
-    }
-
-    // Drop the "paused for payments" record without turning the service on, so
-    // the app falls back to plain setup instead of nagging about the pause.
-    // serviceLeftOff stops the resume alarm and the reboot/update restore from
-    // turning it back on behind the user's back; it clears once it reconnects.
-    Function("dismissPaymentPause") {
-      val context = appContext.reactContext?.applicationContext
-      if (context != null) {
-        prefs(context).edit()
-          .remove("paymentPausePackage")
-          .remove("paymentPauseLabel")
-          .remove("paymentPausedAt")
-          .putBoolean("serviceLeftOff", true)
-          .apply()
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as? android.app.NotificationManager)
-          ?.cancel(PAUSE_NOTIFICATION_ID)
-      }
     }
 
     Function("setMode") { mode: String ->
@@ -228,9 +183,7 @@ class WiltnativeModule : Module() {
     "outfit" to Closet.SLOTS.associateWith { if (it == "fur") "black" else "none" },
     "ownedItems" to emptyList<String>(),
     "coinsSpent" to 0,
-    "paymentPauseApp" to null,
     "canAutoResume" to false,
-    "resumesOnLeave" to false,
     "surfaces" to emptyMap<String, Boolean>(),
     "surfacesPendingOff" to emptyList<String>(),
     "customApps" to emptyList<Map<String, Any?>>(),
@@ -315,33 +268,6 @@ class WiltnativeModule : Module() {
   private fun serviceId(context: Context): String {
     val pkg = context.packageName
     return "$pkg/$pkg.ReelAccessibilityService"
-  }
-
-  /**
-   * The payment app the service switched itself off for, or null. Set by the
-   * service right before disableSelf(); cleared when it reconnects. Only
-   * meaningful while the service is off, so a stale record from a pause the
-   * user resolved by hand is ignored.
-   */
-  private fun paymentPauseApp(context: Context): String? {
-    if (isAccessibilityEnabled(context)) return null
-    return prefs(context).getString("paymentPauseLabel", null)
-  }
-
-  /** Usage access (PACKAGE_USAGE_STATS), which lets the pause end the moment the payment app is left. */
-  private fun canReadUsage(context: Context): Boolean {
-    val ops = context.getSystemService(Context.APP_OPS_SERVICE) as? android.app.AppOpsManager ?: return false
-    val mode = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-      ops.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    } else {
-      @Suppress("DEPRECATION")
-      ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
-    }
-    return mode == android.app.AppOpsManager.MODE_ALLOWED || (
-      mode == android.app.AppOpsManager.MODE_DEFAULT &&
-        context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) ==
-        android.content.pm.PackageManager.PERMISSION_GRANTED
-      )
   }
 
   private fun canWriteSecureSettings(context: Context): Boolean =
