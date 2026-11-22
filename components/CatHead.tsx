@@ -4,20 +4,23 @@ import { catHead, EYE_R, type Eye } from "./catdecay";
 
 /**
  * The cat's head, drawn in its own 256 x 256 box from the [catHead] model, so
- * it looks exactly like the pill and widget frames. Place it with a parent
+ * it looks exactly like the pill and widget frames, in the closet's fur colour. Place it with a parent
  * <G transform> (see DiscHero). `eyes` lets the caller wrap the eye group,
  * so the clock can hand it an Animated <G> that darts.
  */
 export function CatHead({
   t,
+  fur,
   eyes = (children) => <G>{children}</G>,
   clipId = "cathead-clip",
 }: {
   t: number;
+  /** Fur colour id from the closet (catdecay FURS); black when unset. */
+  fur?: string;
   eyes?: (children: ReactNode) => ReactNode;
   clipId?: string;
 }) {
-  const m = catHead(t);
+  const m = catHead(t, fur);
   const PINK = "#E08A97";
 
   return (

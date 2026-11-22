@@ -21,6 +21,7 @@ import {
   FIGURE_BOX,
   FIGURE_HEAD_TF,
   itemShapes,
+  pawsShapes,
   PILL_BOX,
   TOP_PIVOT,
   topTilt,
@@ -29,8 +30,8 @@ import {
 import type { Outfit } from "./closet";
 
 /**
- * The dressed cat: base, bottom, body, head, top, stacked in one SVG in the
- * figure box (or, with `headOnly`, the head and top in the pill box). The head
+ * The dressed cat: base, bottom, body, paws, head, top, stacked in one SVG in the
+ * figure box, in the outfit's fur colour (or, with `headOnly`, the head and top in the pill box). The head
  * keeps its own 0..256 coordinates, so `eyes` and `children` (drawn over the
  * head, under the top item) work in head coordinates as they do with CatHead;
  * in the figure box the chibi transforms from catshapes.ts place the parts.
@@ -62,6 +63,7 @@ export function CatFigure({
   const patternId = `${clipId}-stripes`;
   const pattern = headOnly ? null : bodyPattern(outfit.body, t);
   const top = itemShapes("top", outfit.top, t);
+  const fur = outfit.fur;
 
   return (
     <Svg width={width} height={height} viewBox={viewBox ?? `${box.x} ${box.y} ${box.w} ${box.h}`}>
@@ -75,16 +77,17 @@ export function CatFigure({
       ) : null}
       {headOnly ? null : (
         <G transform={FIGURE_BODY_TF}>
-          <Shapes shapes={baseShapes(t)} />
+          <Shapes shapes={baseShapes(t, fur)} />
           <Shapes shapes={itemShapes("bottom", outfit.bottom, t)} />
           <Shapes shapes={itemShapes("body", outfit.body, t, patternId)} />
+          <Shapes shapes={pawsShapes(outfit.body, t, fur)} />
         </G>
       )}
       <G transform={headOnly ? undefined : FIGURE_HEAD_TF}>
-        <CatHead t={t} eyes={eyes} clipId={`${clipId}-head`} />
+        <CatHead t={t} fur={fur} eyes={eyes} clipId={`${clipId}-head`} />
         {children}
         {top.length ? (
-          <G transform={`rotate(${topTilt(t)} ${TOP_PIVOT.x} ${TOP_PIVOT.y})`}>
+          <G transform={`rotate(${topTilt(t, outfit.top)} ${TOP_PIVOT.x} ${TOP_PIVOT.y})`}>
             <Shapes shapes={top} />
           </G>
         ) : null}

@@ -54,7 +54,7 @@ import org.json.JSONObject
 class ReelAccessibilityService : AccessibilityService() {
 
     private companion object {
-        /** Sparse logcat tag: window switches, payment pauses, filter changes. */
+        /** Sparse logcat tag: window switches, payment apps, filter changes. */
         const val TAG = "Wilt"
     }
 
@@ -229,10 +229,8 @@ class ReelAccessibilityService : AccessibilityService() {
         prefs.edit().putLong("lastConnectedAt", System.currentTimeMillis()).apply()
         // Archive a day that ended while we were off (prefs only, safe here).
         ensureToday()
-        // Being connected means any payment pause is over (the user, or the
-        // auto-resume alarm, turned us back on).
+        // Clears what an older version's payment pause left behind.
         PaymentPause.clearPaused(this)
-        pausing = false
         setTrackedEvents(false)
         watchInstalls()
         // Work out the payment apps now so the first window switch already
@@ -265,9 +263,9 @@ class ReelAccessibilityService : AccessibilityService() {
         }.onFailure { Log.w(TAG, "could not watch installs", it) }
     }
 
-    // The config XML deliberately has no android:packageNames filter: to notice a
-    // payment app coming to the front we must hear window-state changes from EVERY
-    // package. Everything else (content-changed, scrolled) is only wanted inside
+    // The config XML deliberately has no android:packageNames filter: to notice
+    // leaving Instagram/YouTube, an added app, or a payment app coming to the
+    // front we must hear window-state changes from EVERY package. Everything else (content-changed, scrolled) is only wanted inside
     // Instagram/YouTube, and a playing reel floods those, so the subscribed event
     // set is switched at runtime: window-state only while idle, the full set while
     // in a tracked app.
@@ -337,7 +335,9 @@ class ReelAccessibilityService : AccessibilityService() {
             PaymentPause.isPaymentApp(this, eventPkg) -> eventPkg
             else -> null
         }
-        if (paymentPkg != null) { pauseForPaymentApp(paymentPkg); return }
+        // A payment app: stay on (see PaymentPause), drop every overlay, and
+        // never treat it as an added app to block, even if one was added.
+        if (paymentPkg != null) { onLeftTrackedApp(); return }
         if (activePkg != null && Surfaces.isCustomGuarded(prefs, activePkg)) { onCustomApp(activePkg); return }
         // An added app's window event can arrive before the system has made it
         // the active window. It sends no stream of events to catch it later
@@ -381,31 +381,8 @@ class ReelAccessibilityService : AccessibilityService() {
         updateWidget(force = true)
     }
 
-    /**
-     * A payment app is up. Paytm and friends refuse to proceed while this service is ENABLED (not merely while an overlay exists; see [PaymentPause]), so the
-     * only fix is to switch ourselves off. disableSelf() is one-way: the service
-     * stays off until re-enabled from Settings or, with WRITE_SECURE_SETTINGS
-     * granted over adb, by the app itself. onUnbind() follows and clears overlays.
-     */
-    private var pausing = false
-
-    private fun pauseForPaymentApp(pkg: String, label: String = PaymentPause.label(this, pkg)) {
-        if (pausing) return
-        pausing = true
-        mainHandler.removeCallbacks(settleCheck)
-        Log.i(TAG, "payment app $pkg ($label) in front; disabling self")
-        onLeftTrackedApp()
-        PaymentPause.markPaused(this, pkg, label)
-        runCatching { disableSelf() }
-        // Normally the system unbinds us within a beat. If it did not, listen again.
-        mainHandler.postDelayed({ pausing = false }, 5000L)
-    }
-
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
-        // Switching off: disableSelf() takes a moment, and the events still
-        // arriving meanwhile would only pause again.
-        if (pausing) return
         val pkg = event.packageName?.toString()
         if (pkg != instagramPackage && pkg != youtubePackage) {
             // Only a window switch can mean we left a tracked app; anything else
@@ -1570,7 +1547,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!overlayShown) buildPill()
         // Prefs are read on every render, so wearing something in the Closet
         // while Instagram is open shows on the next tick.
-        catView?.let { CatFigureLayers.bindPill(it, catStage(), Closet.outfit(prefs)["top"]) }
+        catView?.let { val o = Closet.outfit(prefs); CatFigureLayers.bindPill(it, catStage(), o["top"], o["fur"]) }
         pillLabel?.setTextColor(CatDecay.textColor(currentSeconds() / 60, limitMinutes()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
@@ -1580,7 +1557,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        catView?.let { CatFigureLayers.bindPill(it, 6, Closet.outfit(prefs)["top"]) } // gone
+        catView?.let { val o = Closet.outfit(prefs); CatFigureLayers.bindPill(it, 6, o["top"], o["fur"]) } // gone
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
         if (bounceFeltPending) {

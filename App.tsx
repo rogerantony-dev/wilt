@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import {
   AppState,
   BackHandler,
-  PermissionsAndroid,
   Platform,
   View,
 } from "react-native";
@@ -15,15 +14,12 @@ import { CoinExplainer, type CoinOrigin } from "./components/CoinExplainer";
 import { GoldCoin } from "./components/GoldCoin";
 import { HistoryScreen } from "./components/HistoryScreen";
 import { OnboardingFlow } from "./components/Onboarding";
-import { PaymentPauseScreen } from "./components/PaymentPause";
 import { Brand, C, Kicker } from "./components/console";
 import {
-  dismissPaymentPause,
   getHistory,
   getStatus,
   grantExtraMinute,
   markStreakCelebrated,
-  resumeAfterPayment,
   setLimit,
   setMode,
   setSurface,
@@ -102,10 +98,6 @@ export default function App() {
   // permissions are live (so the tick lands and onboarding hands off to home).
   const syncStatus = useCallback(() => {
     if (pollRef.current) clearTimeout(pollRef.current);
-    // Wilt in front means the payment app is not: come back on by itself
-    // where the app may do that, instead of waiting on a tap.
-    const now = getStatus();
-    if (now?.paymentPauseApp && now.canAutoResume) resumeAfterPayment();
     let attempts = 0;
     const tick = () => {
       const next = getStatus();
@@ -113,12 +105,6 @@ export default function App() {
       const ready = next?.overlay === true && next?.accessibilityRunning === true;
       if (ready || (attempts += 1) >= 8) {
         pollRef.current = null;
-        // Android 13+ needs this before the "paused for <payment app>" reminder
-        // can show. Asked once setup is complete, when the reason is easy to
-        // see; a no-op once answered.
-        if (ready && Platform.OS === "android") {
-          PermissionsAndroid.request("android.permission.POST_NOTIFICATIONS").catch(() => {});
-        }
         return;
       }
       pollRef.current = setTimeout(tick, 500);
@@ -149,11 +135,7 @@ export default function App() {
 
   const overlayDone = status?.overlay === true;
   const accessibilityDone = status?.accessibilityRunning === true;
-  // Paused for a payment app on a phone where Wilt may turn itself back on:
-  // syncStatus has already asked it to, so this is a beat of reconnecting,
-  // not a state to show. The dashboard stays up instead of the pause screen.
-  const resumingFromPause = !accessibilityDone && !!status?.paymentPauseApp && status.canAutoResume;
-  const allReady = overlayDone && (accessibilityDone || resumingFromPause);
+  const allReady = overlayDone && accessibilityDone;
   // Whether the overlay permission was already granted when the app came up.
   // A fresh install has neither permission, so a missing overlay at launch
   // means this run goes through onboarding: hold on its send-off screen until
@@ -164,11 +146,6 @@ export default function App() {
   if (status && setUpAtLaunch.current === null) setUpAtLaunch.current = overlayDone;
   const [onboardingFinished, setOnboardingFinished] = useState(false);
   const showDashboard = allReady && (setUpAtLaunch.current !== false || onboardingFinished);
-  // The service switched itself off for a payment app and only the user can
-  // turn it back on (no adb grant): offer the way back instead of dropping
-  // the user into first-run setup.
-  const paymentPauseApp =
-    !accessibilityDone && !resumingFromPause ? status?.paymentPauseApp ?? null : null;
 
   // Onboarding's switch: on directly where the app may do it, else Settings.
   const turnOn = useCallback(() => {
@@ -180,10 +157,6 @@ export default function App() {
     }
   }, [syncStatus]);
 
-  const dismissPause = useCallback(() => {
-    dismissPaymentPause();
-    refresh();
-  }, [refresh]);
   const mode: WiltMode = status?.mode ?? "guilt";
   const seconds = status?.todaySeconds ?? 0;
   const count = status?.todayCount ?? 0;
@@ -337,12 +310,6 @@ export default function App() {
                 onOpenApps={() => setAppsOpen(true)}
               />
           </View>
-        ) : paymentPauseApp ? (
-          <PaymentPauseScreen
-            app={paymentPauseApp}
-            onResume={resumeAfterPayment}
-            onDismiss={dismissPause}
-          />
         ) : (
           <OnboardingFlow
             overlayDone={overlayDone}

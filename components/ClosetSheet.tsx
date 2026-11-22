@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 
 import { CatFigure } from "./CatFigure";
-import { canBuy, findItem, isOwned, ITEMS, normalizeOutfit, SLOTS, type Item, type Outfit, type Slot } from "./closet";
+import { canBuy, findItem, isOwned, ITEMS, NO_OUTFIT, normalizeOutfit, SLOTS, type Item, type Outfit, type Slot } from "./closet";
 import { C, Kicker, Segmented } from "./console";
 import { GoldCoin } from "./GoldCoin";
 import { AccentButton, GLASS, GlassButton, HAIRLINE } from "./kit";
@@ -21,6 +21,7 @@ const TABS: { key: Slot; label: string }[] = [
   { key: "top", label: "Top" },
   { key: "body", label: "Body" },
   { key: "bottom", label: "Bottom" },
+  { key: "fur", label: "Fur" },
 ];
 
 /**
@@ -34,6 +35,8 @@ const CROP: Record<Slot, string> = {
   top: "0 -36 256 260",
   body: "53 234 150 136",
   bottom: "63 288 130 118",
+  // The fur shows on the whole head, in the pill box like the top.
+  fur: "0 -10 256 240",
 };
 
 /**
@@ -156,6 +159,7 @@ function Closet({
                 <Tile
                   key={`${tab}-${item.id}`}
                   item={item}
+                  fur={shown.fur}
                   width={tileW}
                   worn={outfit[tab] === item.id}
                   locked={!isOwned(owned, tab, item.id)}
@@ -201,6 +205,7 @@ function Closet({
 /** One item, drawn on the cat and cropped to its slot. */
 function Tile({
   item,
+  fur,
   width,
   worn,
   locked,
@@ -208,6 +213,8 @@ function Tile({
   onPress,
 }: {
   item: Item;
+  /** The fur the clothes are shown on: the worn or tried-on one. */
+  fur: string;
   width: number;
   worn: boolean;
   locked: boolean;
@@ -232,11 +239,11 @@ function Tile({
       <View style={locked ? { opacity: 0.45 } : undefined}>
         <CatFigure
           t={FRESH}
-          outfit={{ top: "none", body: "none", bottom: "none", [item.slot]: item.id }}
+          outfit={{ ...NO_OUTFIT, fur, [item.slot]: item.id }}
           clipId={`closet-${item.slot}-${item.id}`}
           width={width - 10}
           height={Math.round(height * 0.72)}
-          headOnly={item.slot === "top"}
+          headOnly={item.slot === "top" || item.slot === "fur"}
           viewBox={CROP[item.slot]}
         />
       </View>

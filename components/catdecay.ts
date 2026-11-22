@@ -12,6 +12,24 @@
 export type Rgb = [number, number, number];
 
 const FUR_FRESH: Rgb = [0x33, 0x32, 0x2e];
+const WHISKER_LIGHT: Rgb = [0xf2, 0xf1, 0xec];
+const WHISKER_DARK: Rgb = [0x7a, 0x70, 0x62];
+
+/**
+ * Fur colours from the closet: the fresh colour, and the whisker colour that
+ * reads on it. Every fur wilts toward the same sick green and rot, so a rotten
+ * cat looks the same whatever it started as. Mirrors FURS in rot-cat.js; the
+ * ids match the closet's fur items (closet.ts) and the Android drawables.
+ */
+export const FURS: Record<string, { fresh: Rgb; whisker: Rgb }> = {
+  black: { fresh: FUR_FRESH, whisker: WHISKER_LIGHT },
+  ginger: { fresh: [0xd9, 0x83, 0x3a], whisker: WHISKER_LIGHT },
+  grey: { fresh: [0x8c, 0x8c, 0x88], whisker: WHISKER_LIGHT },
+  brown: { fresh: [0x7b, 0x55, 0x3a], whisker: WHISKER_LIGHT },
+  cream: { fresh: [0xe6, 0xcf, 0xa4], whisker: WHISKER_DARK },
+  white: { fresh: [0xee, 0xeb, 0xe3], whisker: WHISKER_DARK },
+};
+const furSpec = (id?: string) => (id && FURS[id]) || FURS.black;
 const FUR_SICK: Rgb = [0x44, 0x5e, 0x38];
 const FUR_ROT: Rgb = [0x5c, 0x7a, 0x40];
 const BONE: Rgb = [0xe6, 0xe1, 0xd2];
@@ -117,7 +135,8 @@ export type CatHeadModel = {
   tearOpacity: number;
 };
 
-export function catHead(tIn: number): CatHeadModel {
+/** The head at `tIn`, in fur `furId` (a FURS key; black when unset or unknown). */
+export function catHead(tIn: number, furId?: string): CatHeadModel {
   const t = Math.max(0, tIn);
   const over = t >= 1;
   const sick = ramp(t, 0.2, 0.7);
@@ -128,7 +147,8 @@ export function catHead(tIn: number): CatHeadModel {
   const mouthK = clamp(t / 0.9, 0, 1);
   const skullK = ramp(t, 0.72, 1.0);
   const bead = ramp(t, 0.2, 0.75);
-  const fur = over ? hex(BONE) : hex(mixRgb(mixRgb(FUR_FRESH, FUR_SICK, sick), FUR_ROT, rotK));
+  const spec = furSpec(furId);
+  const fur = over ? hex(BONE) : hex(mixRgb(mixRgb(spec.fresh, FUR_SICK, sick), FUR_ROT, rotK));
 
   const spotSpec: [number, number, number, number, number, number][] = [
     [84, 152, 16, 11, 0.42, 0],
@@ -182,7 +202,7 @@ export function catHead(tIn: number): CatHeadModel {
     blushOpacity: over ? 0 : 0.55 * (1 - ramp(t, 0.15, 0.45)),
     whiskerDroop: ramp(t, 0.3, 0.9) * 10,
     whiskerOpacity: over ? 0 : lerp(0.85, 0.35, ramp(t, 0.3, 0.9)),
-    whiskerStroke: mix(EYE, WHISKER_SICK, sick),
+    whiskerStroke: mix(spec.whisker, WHISKER_SICK, sick),
     spots,
     patchR: !over && skullK > 0 ? lerp(30, 150, skullK) : 0,
     patchOpacity: 0.6 + 0.4 * skullK,

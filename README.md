@@ -165,15 +165,14 @@ To add a Closet item: add it to `ITEMS` in `components/closet.ts` and, with the 
 ### Gotchas
 
 - **`adb shell am force-stop` kills the accessibility service**, and Android leaves it switched off. The app then drops back to onboarding until you re-enable it in Settings. Use `adb shell input keyevent KEYCODE_HOME` instead when you just want the app backgrounded.
-- **Payment apps switch the service off.** Paytm and similar UPI/banking apps refuse to pay while any third-party accessibility service is enabled, and it is the enabled state they check, not overlays. So when a payment app comes to the front, the service calls `disableSelf()`, posts a notification, and the app shows a resume screen that deep-links to the Settings entry. Wilt finds payment apps on the phone itself: apps that take `upi://pay` links, apps whose name says bank, UPI, pay or wallet, and the short `known` list in `plugin/native/PaymentPause.kt`. Android gives an app no way to re-enable its own service, unless you grant it secure-settings access over adb. After that, Wilt turns itself back on when you open it, a few minutes after each pause (checking every 30 seconds until you have left the payment app), and after a reboot or an update. Grant Usage access as well and it comes back the moment you leave the payment app:
+- **Payment apps and sideloaded builds.** Paytm blocks payments while an accessibility service is on that the Play Store did not install, and shows "Suspicious App Detected" naming Wilt. A Play install is let through, and so is Google Pay either way (tested on a Galaxy A54, 2026-11-22), so Wilt stays on in payment apps and only drops its overlays there. To test a local build with Paytm, install it as if from Play:
 
   ```bash
-  adb shell pm grant com.rogerantony.wilt android.permission.WRITE_SECURE_SETTINGS
-  adb shell appops set com.rogerantony.wilt SCHEDULE_EXACT_ALARM allow
-  adb shell appops set com.rogerantony.wilt GET_USAGE_STATS allow
+  adb push app-release.apk /data/local/tmp/w.apk
+  adb shell pm install -r -i com.android.vending /data/local/tmp/w.apk
   ```
 
-  The second line is optional. Without it the resume alarm is inexact, and Battery Saver stretches it (an inexact 4-minute alarm fired after 11 on a Galaxy A54).
+  Granting secure-settings access over adb (`adb shell pm grant com.rogerantony.wilt android.permission.WRITE_SECURE_SETTINGS`) lets onboarding turn the service on directly and puts it back after a reboot or an update.
 - **Raising the daily limit does nothing today.** It is deferred to the next daily reset on purpose. Lowering it is instant.
 - **`expo prebuild` rewrites `android/gradle.properties`**, so pin the ABI with the `-P` flag on the Gradle command rather than editing that file.
 - The daily counters roll over at local midnight, when the service next sees a new date.

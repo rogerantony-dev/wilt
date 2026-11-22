@@ -43,22 +43,14 @@ export type WiltStatus = {
   graceLeft: number;
   /** Highest streak milestone already celebrated (so the moment doesn't re-fire). */
   lastCelebratedStreakMilestone: number;
-  /** What the cat wears per slot ("none" when bare). */
-  outfit: Record<"top" | "body" | "bottom", string>;
+  /** What the cat wears per slot ("none" when bare), plus its fur colour ("black" by default). */
+  outfit: Record<"top" | "body" | "bottom" | "fur", string>;
   /** Paid item ids bought so far (free items are owned by everyone). */
   ownedItems: string[];
   /** Coins spent in the closet; the balance is banked coins minus this. */
   coinsSpent: number;
-  /**
-   * Label of the payment app the service switched itself off for (Paytm etc.
-   * refuse to pay while a third-party accessibility service is enabled), or
-   * null. Only set while the service is actually off.
-   */
-  paymentPauseApp: string | null;
-  /** WRITE_SECURE_SETTINGS was granted over adb, so the app can re-enable itself. */
+  /** WRITE_SECURE_SETTINGS was granted over adb, so the app can turn its service on itself. */
   canAutoResume: boolean;
-  /** Usage access is granted too, so a pause ends the moment the payment app is left. */
-  resumesOnLeave: boolean;
   /**
    * Which surfaces are guarded right now: counted toward the limit in Guilt,
    * blocked in Block. Missing keys (an old native build) read as unguarded.
@@ -93,9 +85,7 @@ type NativeModule = {
   markStreakCelebrated(milestone: number): void;
   wearItem(slot: string, id: string): boolean;
   buyItem(slot: string, id: string, balance: number): boolean;
-  resumeAfterPayment(): boolean;
   turnOnService(): boolean;
-  dismissPaymentPause(): void;
   setSurface(key: WiltSurface, on: boolean): void;
   listApps(): WiltApp[];
   addApp(pkg: string): void;
@@ -196,30 +186,6 @@ export function buyItem(slot: string, id: string, balance: number): boolean {
     return nativeModule.buyItem(slot, id, balance);
   } catch {
     return false;
-  }
-}
-
-/**
- * Turn the service back on after a payment pause. Returns true when it was
- * re-enabled directly (adb-granted WRITE_SECURE_SETTINGS); otherwise Settings >
- * Accessibility opens on Wilt's entry and the user flips the switch.
- */
-export function resumeAfterPayment(): boolean {
-  if (!nativeModule) return false;
-  try {
-    return nativeModule.resumeAfterPayment();
-  } catch {
-    return false;
-  }
-}
-
-/** Forget the payment pause without re-enabling; the app shows plain setup instead. */
-export function dismissPaymentPause(): void {
-  if (!nativeModule) return;
-  try {
-    nativeModule.dismissPaymentPause();
-  } catch {
-    // no-op if the native module isn't available
   }
 }
 

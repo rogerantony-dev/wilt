@@ -1,6 +1,6 @@
 # Privacy Policy for Wilt
 
-**Last updated: 6 September 2026**
+**Last updated: 22 November 2026**
 
 Wilt is a screen-time app for Android. It counts the time you spend on
 Instagram Reels and YouTube Shorts, shows that time back to you, and can block
@@ -49,8 +49,10 @@ those two apps, it looks for the on-screen signs of a Reels or Shorts player.
 
 Outside those two apps the service asks Android for one thing: a notice when a
 different app comes to the front, carrying that app's package name or window
-title. It uses this solely to recognise a payment app and switch itself off (see
-below). It does not read, and is not sent, the contents of any other app's screen.
+title. It uses this only to notice when you leave Instagram or YouTube, to time
+and block an app you added yourself in the Apps sheet, and to recognise payment
+apps (see below). It does not read, and is not sent, the contents of any other
+app's screen.
 
 **What it does with what it sees.** It increments a timer. Screen contents are
 examined in the moment and discarded. Wilt does not record, store, log,
@@ -60,17 +62,12 @@ posts, your account details, or your passwords.
 **What it can do.** When you reach your limit, the service navigates away from
 the feed. This is why it is permitted to perform gestures.
 
-**Payment apps.** Some UPI and banking apps (Paytm, for example) refuse to make a
-payment while any third-party accessibility service is enabled on the phone. So
-when a payment or banking app opens, the service turns itself off and Wilt posts
-a notification saying so. To know which apps those are, Wilt looks on the phone
-for apps that accept UPI payment links or whose name says bank, UPI, pay or
-wallet, plus a short list built into Wilt. That check happens on the phone; no
-list of the apps on your phone is stored outside it, collected or sent anywhere.
-Nothing is counted until you turn the service back on, which the app links you
-to. If you have granted Wilt Usage access, it reads the phone's recent
-app-switch events only to notice that you have left the payment app, so it can
-turn itself back on; nothing from that is stored or sent.
+**Payment apps.** Wilt recognises UPI and banking apps so it never draws over
+them and never blocks one, even if you add it in the Apps sheet. To know which
+apps those are, Wilt looks on the phone for apps that accept UPI payment links or
+whose name says bank, UPI, pay or wallet, plus a short list built into Wilt. That
+check happens on the phone; no list of the apps on your phone is stored outside
+it, collected or sent anywhere.
 
 ## Other permissions
 
@@ -79,11 +76,6 @@ turn itself back on; nothing from that is stored or sent.
 - **Internet and network state.** These appear in the app's permission list
   because standard Android app frameworks declare them. Wilt itself makes no
   network requests.
-- **Notifications.** One notification only: that Wilt has paused itself for a
-  payment app, so you know to turn it back on. Nothing else is ever posted.
-- **Alarms and reminders.** Used for a single timer that turns the service back
-  on a few minutes after a payment pause, and only on a phone where you have
-  granted Wilt that ability with developer tools. Wilt never asks you for it.
 - **Vibrate.** Declared by the app framework.
 
 ## Children

@@ -10,24 +10,35 @@ import android.content.SharedPreferences
  * JS owns the coin maths (banked days minus spent); it passes the balance to
  * [buy], and native re-checks it. Unknown or unowned ids read as "none", so a
  * renamed item or hand-edited prefs can never draw a blank or broken layer.
- * Mirrors components/closet.ts by value.
+ * Mirrors components/closet.ts by value. "fur" is the cat's colour, not a
+ * garment: black is its free default and it has no "none".
  */
 object Closet {
-  val SLOTS = listOf("top", "body", "bottom")
+  val SLOTS = listOf("top", "body", "bottom", "fur")
+
+  /** What a slot reads as when nothing valid is stored. */
+  private fun default(slot: String) = if (slot == "fur") "black" else "none"
 
   /** slot -> id -> price in coins. Price 0 items belong to everyone. */
   val PRICES: Map<String, Map<String, Int>> = mapOf(
     "top" to mapOf(
       "none" to 0, "beanie" to 0, "cap" to 100, "flower" to 150, "bow" to 150,
       "phones" to 250, "party" to 300, "crown" to 600, "halo" to 900,
+      "spidermask" to 500, "batcowl" to 500, "hunterhair" to 450,
     ),
     "body" to mapOf(
       "none" to 0, "tee" to 0, "hoodie" to 150, "stripes" to 200,
       "scarf" to 250, "raincoat" to 350, "suit" to 600,
+      "spidersuit" to 700, "batsuit" to 750, "hunterarmour" to 700,
     ),
     "bottom" to mapOf(
       "none" to 0, "shorts" to 0, "jeans" to 150, "joggers" to 200,
       "sneakers" to 300, "tutu" to 400,
+      "spidertights" to 350, "batboots" to 350, "hunterboots" to 350,
+    ),
+    "fur" to mapOf(
+      "black" to 0, "ginger" to 250, "grey" to 250, "brown" to 250,
+      "cream" to 350, "white" to 400,
     ),
   )
 
@@ -47,11 +58,11 @@ object Closet {
     return price == 0 || id in owned(prefs)
   }
 
-  /** The worn id per slot; anything unknown or not owned reads as "none". */
+  /** The worn id per slot; anything unknown or not owned reads as the default ("none", black fur). */
   fun outfit(prefs: SharedPreferences): Map<String, String> =
     SLOTS.associateWith { slot ->
-      val id = prefs.getString(key(slot), "none") ?: "none"
-      if (isOwned(prefs, slot, id)) id else "none"
+      val id = prefs.getString(key(slot), default(slot)) ?: default(slot)
+      if (isOwned(prefs, slot, id)) id else default(slot)
     }
 
   /** Put [id] on. False when it is unknown or not owned. */

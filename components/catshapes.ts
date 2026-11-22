@@ -5,7 +5,8 @@
  *
  * Everything sits in the figure box (0 -40 256 440), with the head from
  * catdecay.ts at 0..256 x 0..256 inside it. Layers stack base, bottom, body,
- * head, top; CatFigure.tsx draws them. Shape props are named as
+ * paws, head, top; CatFigure.tsx draws them. Base, paws and head carry the
+ * fur colour (catdecay FURS); the clothes never do. Shape props are named as
  * react-native-svg props so the component can spread them straight on.
  */
 
@@ -36,10 +37,15 @@ const HOLE = "#0D0D0C";
 const RIB = "#8A8574";
 const MOLD = ["#8FB23C", "#B5C64A", "#6F9636", "#D0DC5A"];
 
-/** The fur, the same colour the head is. */
-export function furColor(t: number): string {
-  return catHead(t).fur;
+/** The fur, the same colour the head is. `fur` is a catdecay FURS id; black when unset. */
+export function furColor(t: number, fur?: string): string {
+  return catHead(t, fur).fur;
 }
+
+/** Body items with a torso piece and sleeves; the paws layer goes over these. Mirrored in cat-figure.js and CatFigureLayers.kt. */
+export const SLEEVED = ["tee", "hoodie", "stripes", "raincoat", "suit", "spidersuit", "batsuit", "hunterarmour"];
+/** Headwear that fits the head (masks, hair): it stays put instead of tilting with the ears. */
+export const FITTED = ["spidermask", "batcowl", "hunterhair"];
 
 const rgb = (h: string): Rgb => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as Rgb;
 
@@ -51,8 +57,9 @@ export function dullColor(h: string, t: number): string {
 
 const earDroop = (t: number) => ramp(t, 0.25, 0.85) * 42;
 
-/** Degrees the headwear tilts about (TOP_PIVOT): with the ears, and askew once over. */
-export function topTilt(t: number): number {
+/** Degrees the headwear tilts about (TOP_PIVOT): with the ears, and askew once over. Fitted pieces never tilt. */
+export function topTilt(t: number, id?: string): number {
+  if (id && FITTED.includes(id)) return 0;
   return earDroop(t) * 0.3 + (t >= 1 ? 12 : 0);
 }
 export const TOP_PIVOT = { x: 128, y: 96 };
@@ -71,9 +78,9 @@ const ellipse = (cx: number, cy: number, rx: number, ry: number, fill: string, e
   kind: "ellipse",
   props: { cx, cy, rx, ry, fill, ...extra },
 });
-const rect = (x: number, y: number, width: number, height: number, rx: number, fill: string): Shape => ({
+const rect = (x: number, y: number, width: number, height: number, rx: number, fill: string, extra: P = {}): Shape => ({
   kind: "rect",
-  props: { x, y, width, height, rx, fill },
+  props: { x, y, width, height, rx, fill, ...extra },
 });
 const line = (x1: number, y1: number, x2: number, y2: number, color: string, width: number) =>
   stroke(`M${x1} ${y1} L${x2} ${y2}`, color, width);
@@ -132,10 +139,66 @@ function topShapes(id: string, t: number): Shape[] {
       ];
     case "halo":
       return [ellipse(128, 22, 46, 11, "none", { stroke: c("#E5B53A"), strokeWidth: 7 })];
+    case "spidermask":
+      return [
+        path(MASK, { fill: c("#C8322E"), fillRule: "evenodd" }),
+        stroke(MASK_WEB, c("#4A1210"), 2, { strokeLinecap: "round" }),
+        circle(94, 146, 27, "none", { stroke: c("#1A1A18"), strokeWidth: 5 }),
+        circle(162, 146, 27, "none", { stroke: c("#1A1A18"), strokeWidth: 5 }),
+      ];
+    case "batcowl":
+      return [
+        path("M60 112 L78 4 L108 70 Z M196 112 L178 4 L148 70 Z", { fill: c("#26262C") }),
+        path(MASK, { fill: c("#2E2E36"), fillRule: "evenodd" }),
+        stroke("M58 104 C80 70 176 70 198 104", c("#4A4A55"), 3, { strokeLinecap: "round" }),
+      ];
+    case "hunterhair":
+      return [
+        stroke("M198 96 C224 110 234 150 224 190", c("#D6D6CE"), 15, { strokeLinecap: "round" }),
+        rect(210, 124, 20, 9, 4, c("#5A4632"), { transform: "rotate(70 220 128)" }),
+        path(
+          "M40 130 C34 62 90 42 128 42 C166 42 222 62 216 130 C206 110 192 100 174 98 L162 112 L152 94 C140 100 116 100 104 94 L94 112 L82 98 C64 100 50 110 40 130 Z",
+          { fill: c("#D6D6CE") },
+        ),
+        stroke(
+          "M70 84 C90 66 110 60 124 60 M136 60 C154 62 176 70 190 86 M58 104 C66 90 80 80 96 76",
+          c("#A9A9A0"),
+          3,
+          { strokeLinecap: "round" },
+        ),
+        stroke("M84 104 L91 120 M99 171 L103 181", c("#C86A79"), 3.5, { strokeLinecap: "round" }),
+      ];
     default:
       return [];
   }
 }
+
+/**
+ * The mask over the head down to the nose, with the cat's own eyes showing
+ * through two holes (so the face still wilts behind it). Head ellipse: centre
+ * (128, 134), 88 x 76. Same path as cat-figure.js.
+ */
+const MASK =
+  "M44.5 158 A88 76 0 1 1 211.5 158 Q128 162 44.5 158 Z M121 146 a27 27 0 1 0 -54 0 a27 27 0 1 0 54 0 Z M189 146 a27 27 0 1 0 -54 0 a27 27 0 1 0 54 0 Z";
+/** Web lines on the mask: spokes up from the middle of the head, away from the eyes, and two sagging rings. */
+const MASK_WEB = (() => {
+  const angles = [-150, -120, -90, -60, -30].map((a) => (a * Math.PI) / 180);
+  const at = (a: number, k: number) => [128 + 88 * k * Math.cos(a), 134 + 76 * k * Math.sin(a)];
+  const f = (v: number) => v.toFixed(1);
+  const spokes = angles.map((a) => {
+    const [x0, y0] = at(a, 0.28);
+    const [x1, y1] = at(a, 0.98);
+    return `M${f(x0)} ${f(y0)} L${f(x1)} ${f(y1)}`;
+  });
+  const ring = (k: number) =>
+    angles.slice(1).map((a, i) => {
+      const [x0, y0] = at(angles[i], k);
+      const [x1, y1] = at(a, k);
+      const [cx, cy] = at((a + angles[i]) / 2, k * 0.86);
+      return `M${f(x0)} ${f(y0)} Q${f(cx)} ${f(cy)} ${f(x1)} ${f(y1)}`;
+    });
+  return [...spokes, ...ring(0.55), ...ring(0.8)].join(" ");
+})();
 
 // ---- body
 
@@ -190,6 +253,89 @@ function torsoPiece(id: string, t: number, patternId: string): Shape[] {
         circle(128, 286, 3.5, c("#62625B")),
         ...holes,
       ];
+    case "spidersuit":
+      return [
+        path(TEE, { fill: c("#C8322E") }),
+        stroke(SUIT_WEB, c("#4A1210"), 2, { strokeLinecap: "round" }),
+        ellipse(128, 250, 6, 9, c("#1A1A18")),
+        circle(128, 238, 4.5, c("#1A1A18")),
+        stroke(
+          "M122 244 l-12 -8 M122 250 l-14 -2 M122 256 l-13 6 M123 261 l-9 10 M134 244 l12 -8 M134 250 l14 -2 M134 256 l13 6 M133 261 l9 10",
+          c("#1A1A18"),
+          2.5,
+          { strokeLinecap: "round" },
+        ),
+        ...holes,
+      ];
+    case "batsuit":
+      return [
+        path(TEE, { fill: c("#4A4A52") }),
+        stroke("M96 206 C110 218 146 218 160 206", c("#26262C"), 6, { strokeLinecap: "round" }),
+        path("M82 292 C110 300 146 300 174 292 L174 306 C146 314 110 314 82 306 Z", { fill: c("#E5B53A") }),
+        ...[100, 116, 140, 156].map((x) => rect(x - 5, 296, 10, 12, 2, c("#C9962A"))),
+        rect(121, 295, 14, 14, 3, c("#C9962A"), { stroke: c("#8E6B1E"), strokeWidth: 2 }),
+        ...holes,
+      ];
+    case "hunterarmour":
+      return [
+        path(TEE, { fill: c("#3A332C") }),
+        stroke("M170 214 L88 304", c("#6B5238"), 9, { strokeLinecap: "round" }),
+        ...(
+          [
+            [150, 236],
+            [130, 258],
+            [110, 280],
+          ] as const
+        ).map(([x, y]) => circle(x, y, 3, c("#BFC3C4"))),
+        stroke("M108 208 L128 246 L148 208", c("#BFC3C4"), 2.5),
+        circle(128, 256, 12, c("#BFC3C4"), { stroke: c("#8D9294"), strokeWidth: 2 }),
+        path("M119 252 l3 -9 l4 6 h4 l4 -6 l3 9 l-4 9 h-10 z", { fill: c("#6E7476") }),
+        circle(124.5, 253, 1.4, c("#D2542F")),
+        circle(131.5, 253, 1.4, c("#D2542F")),
+        ...holes,
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Web lines on the spider suit: down the torso and across it, inside TEE. */
+const SUIT_WEB =
+  [100, 114, 142, 156].map((x) => `M${x} 214 V306`).join(" ") +
+  " " +
+  [234, 258, 282].map((y) => `M84 ${y} Q128 ${y + 10} 172 ${y}`).join(" ");
+
+/**
+ * Behind the torso: the bat cape's two wings, out past the arms but clear of
+ * the legs, and the hunter's two swords, hilts up over the right shoulder.
+ */
+function behind(id: string, t: number): Shape[] {
+  const c = (h: string) => dullColor(h, t);
+  switch (id) {
+    case "batsuit":
+      return [
+        path(
+          "M88 210 C62 240 46 290 38 332 L64 318 L92 326 L96 300 Z M168 210 C194 240 210 290 218 332 L192 318 L164 326 L160 300 Z",
+          { fill: c("#1E1E24") },
+        ),
+      ];
+    case "hunterarmour":
+      // Two swords, the second shifted (6, 12): cat-figure.js's translate, baked in.
+      return (
+        [
+          [0, "#4A3A2A"],
+          [6, "#3E3024"],
+        ] as const
+      ).flatMap(([d, col]) => {
+        const x = (v: number) => v + d;
+        const y = (v: number) => v + d * 2;
+        return [
+          stroke(`M${x(212)} ${y(210)} L${x(76)} ${y(318)}`, c(col), 9, { strokeLinecap: "round" }),
+          stroke(`M${x(214)} ${y(208)} L${x(230)} ${y(195)}`, c("#2A2A27"), 6, { strokeLinecap: "round" }),
+          stroke(`M${x(205)} ${y(203)} L${x(218)} ${y(219)}`, c("#BFC3C4"), 5, { strokeLinecap: "round" }),
+          circle(x(232), y(193), 4.5, c("#BFC3C4")),
+        ];
+      });
     default:
       return [];
   }
@@ -213,6 +359,21 @@ function sleeves(id: string, t: number): Shape[] {
       return s(c("#E5B53A"), longL, longR);
     case "suit":
       return s(c("#2B2E3A"), longL, longR);
+    case "spidersuit":
+      return [
+        ...s(c("#C8322E"), longL, longR),
+        stroke("M74 248 l-10 6 M70 266 l-12 2 M182 248 l10 6 M186 266 l12 2", c("#4A1210"), 2, { strokeLinecap: "round" }),
+      ];
+    case "batsuit":
+      return [
+        ...s(c("#4A4A52"), longL, longR),
+        stroke("M64 270 l-6 -8 l10 2 M192 270 l6 -8 l-10 2", c("#26262C"), 4, {
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+        }),
+      ];
+    case "hunterarmour":
+      return [...s(c("#3A332C"), longL, longR), stroke("M62 262 h16 M178 262 h16", c("#6B5238"), 5, { strokeLinecap: "round" })];
     default:
       return [];
   }
@@ -228,13 +389,20 @@ function scarf(id: string, t: number): Shape[] {
   ];
 }
 
-/** The body item. A torso piece covers the base's arms, so fur arms, sleeves and paws go on again over it. */
+/**
+ * The body item: anything behind the torso, the hood, the torso piece, its
+ * sleeves (which cover the base's arms), the scarf. No fur here: the paws go
+ * back on in their own layer (pawsShapes).
+ */
 function bodyShapes(id: string, t: number, patternId: string): Shape[] {
-  const fur = furColor(t);
   const hood = id === "hoodie" ? [ellipse(128, 204, 66, 22, dullColor("#3D5E8E", t))] : [];
   const piece = torsoPiece(id, t, patternId);
-  const limbs = piece.length ? [...arms(fur), ...sleeves(id, t), ...paws(fur)] : [];
-  return [...hood, ...piece, ...limbs, ...scarf(id, t)];
+  return [...behind(id, t), ...hood, ...piece, ...(piece.length ? sleeves(id, t) : []), ...scarf(id, t)];
+}
+
+/** The paws over a sleeved body item (SLEEVED), in the fur colour; [] otherwise. */
+export function pawsShapes(body: string, t: number, fur?: string): Shape[] {
+  return SLEEVED.includes(body) ? paws(furColor(t, fur)) : [];
 }
 
 // ---- bottom
@@ -243,6 +411,13 @@ function bottomShapes(id: string, t: number): Shape[] {
   const c = (h: string) => dullColor(h, t);
   const legs = (col: string, to: number) => [rect(94, 296, 32, to - 296, 10, col), rect(130, 296, 32, to - 296, 10, col)];
   const waist = (col: string) => path("M86 300 C100 308 156 308 170 300 L168 322 C150 330 106 330 88 322 Z", { fill: col });
+  /** Boots from the shin (y) down over the feet. */
+  const boots = (col: string, y: number) => [
+    rect(92, y, 36, 372 - y, 8, col),
+    ellipse(106, 372, 22, 10, col),
+    rect(128, y, 36, 372 - y, 8, col),
+    ellipse(150, 372, 22, 10, col),
+  ];
   switch (id) {
     case "jeans":
       return [
@@ -270,6 +445,24 @@ function bottomShapes(id: string, t: number): Shape[] {
         path("M128 370 a22 12 0 0 1 44 0 v6 h-44z", { fill: c("#F2F1EC") }),
         stroke("M96 368 l18 -6 M140 368 l18 -6", c("#38C786"), 4, { strokeLinecap: "round" }),
       ];
+    case "spidertights":
+      return [
+        ...legs(c("#C8322E"), 362),
+        waist(c("#C8322E")),
+        ...boots(c("#C8322E"), 360),
+        stroke("M94 318 h32 M130 318 h32 M94 338 h32 M130 338 h32 M110 300 V372 M146 300 V372", c("#4A1210"), 2, {
+          strokeLinecap: "round",
+        }),
+      ];
+    case "batboots":
+      return [...legs(c("#4A4A52"), 352), waist(c("#4A4A52")), ...boots(c("#1E1E24"), 344)];
+    case "hunterboots":
+      return [
+        ...legs(c("#2F2B27"), 350),
+        waist(c("#2F2B27")),
+        ...boots(c("#5A4632"), 338),
+        stroke("M92 348 h36 M128 348 h36", c("#3E3024"), 4),
+      ];
     default:
       return [];
   }
@@ -287,12 +480,15 @@ export function itemShapes(slot: Slot, id: string, t: number, patternId = "strip
       return bodyShapes(id, t, patternId);
     case "bottom":
       return bottomShapes(id, t);
+    case "fur":
+      // The fur colours the base, paws and head; it is not a garment.
+      return [];
   }
 }
 
-/** The bare cat below the head: tail, legs, feet, torso, mould, ribs once over, arms and paws. */
-export function baseShapes(t: number): Shape[] {
-  const fur = furColor(t);
+/** The bare cat below the head: tail, legs, feet, torso, mould, ribs once over, arms and paws, in `furId`. */
+export function baseShapes(t: number, furId?: string): Shape[] {
+  const fur = furColor(t, furId);
   const over = t >= 1;
   const spots: Shape[] = over
     ? []

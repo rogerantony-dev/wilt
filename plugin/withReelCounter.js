@@ -79,23 +79,13 @@ function withReelCounterManifest(config) {
         $: { "android:name": "android.permission.SYSTEM_ALERT_WINDOW" },
       });
     }
-    // POST_NOTIFICATIONS: the "paused for <payment app>" reminder on Android 13+.
     // WRITE_SECURE_SETTINGS: never granted by the system to a normal install,
-    // only over adb (`pm grant`). When present, the app can re-enable its own
-    // accessibility service after a payment pause instead of sending the user
-    // to Settings. Declaring it is harmless without the grant.
-    // SCHEDULE_EXACT_ALARM: lets the resume alarm fire on time under Battery
-    // Saver; off by default, granted in Settings (Alarms and reminders) or adb.
-    // PACKAGE_USAGE_STATS + FOREGROUND_SERVICE: the short foreground watch that
-    // turns the service back on the moment the user leaves the payment app.
-    // Usage access is granted in Settings (Special app access) or over adb.
+    // only over adb (`pm grant`). When present, the app turns its own
+    // accessibility service on (onboarding, and after a reboot or update)
+    // instead of sending the user to Settings. Harmless without the grant.
     // RECEIVE_BOOT_COMPLETED: put the service back after a reboot.
     for (const name of [
-      "android.permission.POST_NOTIFICATIONS",
       "android.permission.WRITE_SECURE_SETTINGS",
-      "android.permission.SCHEDULE_EXACT_ALARM",
-      "android.permission.PACKAGE_USAGE_STATS",
-      "android.permission.FOREGROUND_SERVICE",
       "android.permission.RECEIVE_BOOT_COMPLETED",
     ]) {
       if (!permissions.some((p) => p.$["android:name"] === name)) {
@@ -103,6 +93,17 @@ function withReelCounterManifest(config) {
       }
     }
     manifest.manifest["uses-permission"] = permissions;
+
+    // The app is locked to portrait, from which Android infers a required
+    // android.hardware.screen.portrait feature. Play flags that as limiting
+    // availability (landscape-only devices, Android XR), so declare it optional.
+    const features = manifest.manifest["uses-feature"] || [];
+    if (!features.some((f) => f.$["android:name"] === "android.hardware.screen.portrait")) {
+      features.push({
+        $: { "android:name": "android.hardware.screen.portrait", "android:required": "false" },
+      });
+    }
+    manifest.manifest["uses-feature"] = features;
 
     // Package visibility (Android 11+): the Apps sheet lists launcher apps so
     // any of them can be added and guarded. Declaring the launcher intent is
@@ -123,8 +124,9 @@ function withReelCounterManifest(config) {
         ],
       });
     }
-    // The service steps aside for payment apps, and every UPI app (and most
-    // bank apps) takes upi:// links, so that is how they are found.
+    // The service drops its overlays over payment apps and never lets one be
+    // blocked as an added app. Every UPI app (and most bank apps) takes upi://
+    // links, so that is how they are found.
     const hasUpiQuery = queries.some((q) =>
       (q.intent || []).some((i) => (i.data || []).some((d) => d.$["android:scheme"] === "upi"))
     );
@@ -134,23 +136,6 @@ function withReelCounterManifest(config) {
           {
             action: [{ $: { "android:name": "android.intent.action.VIEW" } }],
             data: [{ $: { "android:scheme": "upi" } }],
-          },
-        ],
-      });
-    }
-    // The payment watch counts going home as leaving the payment app, so it
-    // must see the home screen app, which may have no launcher icon.
-    const hasHomeQuery = queries.some((q) =>
-      (q.intent || []).some((i) =>
-        (i.category || []).some((c) => c.$["android:name"] === "android.intent.category.HOME")
-      )
-    );
-    if (!hasHomeQuery) {
-      queries.push({
-        intent: [
-          {
-            action: [{ $: { "android:name": "android.intent.action.MAIN" } }],
-            category: [{ $: { "android:name": "android.intent.category.HOME" } }],
           },
         ],
       });
@@ -194,21 +179,6 @@ function withReelCounterManifest(config) {
       });
     }
 
-    // The payment watch: a short foreground service (Android 14's shortService
-    // type needs no extra permission and is capped at a few minutes).
-    const watchDeclared = application.service.some(
-      (s) => s.$["android:name"] === ".PaymentWatchService"
-    );
-    if (!watchDeclared) {
-      application.service.push({
-        $: {
-          "android:name": ".PaymentWatchService",
-          "android:exported": "false",
-          "android:foregroundServiceType": "shortService",
-        },
-      });
-    }
-
     // The home-screen widget receiver (reads the same counts the service writes).
     application.receiver = application.receiver || [];
     const widgetDeclared = application.receiver.some(
@@ -245,15 +215,15 @@ function withReelCounterManifest(config) {
       });
     }
 
-    // Alarm target that re-enables the service after a payment pause (only
-    // acts when WRITE_SECURE_SETTINGS has been granted over adb).
-    const resumeDeclared = application.receiver.some(
-      (r) => r.$["android:name"] === ".PaymentResumeReceiver"
+    // Alarm target that checks a restore took and retries it (only acts when
+    // WRITE_SECURE_SETTINGS has been granted over adb).
+    const verifyDeclared = application.receiver.some(
+      (r) => r.$["android:name"] === ".ServiceVerifyReceiver"
     );
-    if (!resumeDeclared) {
+    if (!verifyDeclared) {
       application.receiver.push({
         $: {
-          "android:name": ".PaymentResumeReceiver",
+          "android:name": ".ServiceVerifyReceiver",
           "android:exported": "false",
         },
       });
