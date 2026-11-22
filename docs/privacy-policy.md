@@ -1,6 +1,6 @@
 # Privacy Policy for Wilt
 
-**Last updated: 6 September 2026**
+**Last updated: 22 November 2026**
 
 Wilt is a screen-time app for Android. It counts the time you spend on
 Instagram Reels and YouTube Shorts, shows that time back to you, and can block
@@ -49,8 +49,10 @@ those two apps, it looks for the on-screen signs of a Reels or Shorts player.
 
 Outside those two apps the service asks Android for one thing: a notice when a
 different app comes to the front, carrying that app's package name or window
-title. It uses this solely to recognise a payment app and switch itself off (see
-below). It does not read, and is not sent, the contents of any other app's screen.
+title. It uses this only to notice when you leave Instagram or YouTube, to time
+and block an app you added yourself in the Apps sheet, and to recognise payment
+apps (see below). It does not read, and is not sent, the contents of any other
+app's screen.
 
 **What it does with what it sees.** It increments a timer. Screen contents are
 examined in the moment and discarded. Wilt does not record, store, log,

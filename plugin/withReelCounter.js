@@ -94,6 +94,17 @@ function withReelCounterManifest(config) {
     }
     manifest.manifest["uses-permission"] = permissions;
 
+    // The app is locked to portrait, from which Android infers a required
+    // android.hardware.screen.portrait feature. Play flags that as limiting
+    // availability (landscape-only devices, Android XR), so declare it optional.
+    const features = manifest.manifest["uses-feature"] || [];
+    if (!features.some((f) => f.$["android:name"] === "android.hardware.screen.portrait")) {
+      features.push({
+        $: { "android:name": "android.hardware.screen.portrait", "android:required": "false" },
+      });
+    }
+    manifest.manifest["uses-feature"] = features;
+
     // Package visibility (Android 11+): the Apps sheet lists launcher apps so
     // any of them can be added and guarded. Declaring the launcher intent is
     // the narrow alternative to QUERY_ALL_PACKAGES.
