@@ -5,14 +5,14 @@
 <script src="rot-cat.js"></script>
 <script src="cat-figure.js"></script>
 <script>
-// ?layer=base|head|top|body|bottom&item=<id>&stage=1..6&box=figure|pill renders one layer of the
+// ?layer=base|head|top|body|bottom|paws&item=<id>&stage=1..6&box=figure|pill&fur=<id> renders one layer of the
 // dressed cat for res/drawable-nodpi (see scripts/render-cat-layers.sh). Screenshot with
 // --default-background-color=00000000 at 360x619 (figure) or 192x192 (pill) for transparency.
 const q = new URLSearchParams(location.search);
 const box = q.get('box') === 'pill' ? 'pill' : 'figure';
 const stage = Math.min(6, Math.max(1, parseInt(q.get('stage') || '1', 10) || 1));
 const [w, h] = box === 'pill' ? [192, 192] : [360, 619];
-const svg = figureLayer(q.get('layer') || 'base', STAGE_T[stage - 1], { item: q.get('item') || 'none', box, id: 'L' });
+const svg = figureLayer(q.get('layer') || 'base', STAGE_T[stage - 1], { item: q.get('item') || 'none', box, id: 'L', fur: q.get('fur') || 'black' });
 const f = document.getElementById('f');
 f.innerHTML = svg;
 f.firstElementChild.setAttribute('width', w);

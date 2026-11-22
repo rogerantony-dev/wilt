@@ -225,7 +225,7 @@ class WiltnativeModule : Module() {
     "autoBlocked" to false,
     "graceLeft" to 3,
     "lastCelebratedStreakMilestone" to 0,
-    "outfit" to Closet.SLOTS.associateWith { "none" },
+    "outfit" to Closet.SLOTS.associateWith { if (it == "fur") "black" else "none" },
     "ownedItems" to emptyList<String>(),
     "coinsSpent" to 0,
     "paymentPauseApp" to null,

@@ -6,6 +6,19 @@ const ramp = (t, from, to) => smooth((t - from) / (to - from));
 function hex(c) { return '#' + c.map(v => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join(''); }
 function mix(a, b, k) { return hex([0, 1, 2].map(i => lerp(a[i], b[i], k))); }
 const FUR_FRESH = [0x33, 0x32, 0x2E], FUR_SICK = [0x44, 0x5E, 0x38], FUR_ROT = [0x5C, 0x7A, 0x40];
+// Fur colours from the closet: the fresh colour, and the whisker colour that reads on it.
+// Every fur wilts toward the same sick green and rot, so a rotten cat looks the same whatever
+// it started as. Mirrored in components/catdecay.ts (FURS).
+const WHISKER_LIGHT = [0xF2, 0xF1, 0xEC], WHISKER_DARK = [0x7A, 0x70, 0x62];
+const FURS = {
+  black: { fresh: FUR_FRESH, whisker: WHISKER_LIGHT },
+  ginger: { fresh: [0xD9, 0x83, 0x3A], whisker: WHISKER_LIGHT },
+  grey: { fresh: [0x8C, 0x8C, 0x88], whisker: WHISKER_LIGHT },
+  brown: { fresh: [0x7B, 0x55, 0x3A], whisker: WHISKER_LIGHT },
+  cream: { fresh: [0xE6, 0xCF, 0xA4], whisker: WHISKER_DARK },
+  white: { fresh: [0xEE, 0xEB, 0xE3], whisker: WHISKER_DARK },
+};
+const furSpec = (id) => FURS[id] || FURS.black;
 const BONE = [0xE6, 0xE1, 0xD2], EYE = [0xF2, 0xF1, 0xEC];
 const MOLD = ['#8FB23C', '#B5C64A', '#6F9636', '#D0DC5A'];
 // The eyes: centres at x 94 and 162 on this line, radius EYE_R. Mirrored in components/catdecay.ts.
@@ -30,7 +43,8 @@ function cat(t, opts = {}) {
   const mouthK = clamp(t / 0.9, 0, 1);         // smile -> frown
   const skullK = ramp(t, 0.72, 1.0);           // bone patch growth, earlier and bigger
   const rotK = ramp(t, 0.65, 1);
-  const fur = over ? hex(BONE) : hex([0, 1, 2].map(i => lerp(lerp(FUR_FRESH[i], FUR_SICK[i], sick), FUR_ROT[i], rotK)));
+  const spec = furSpec(opts.fur);
+  const fur = over ? hex(BONE) : hex([0, 1, 2].map(i => lerp(lerp(spec.fresh[i], FUR_SICK[i], sick), FUR_ROT[i], rotK)));
   const face = over ? hex(BONE) : fur;
   const xLeft = t >= 0.84, xRight = over;
 
@@ -116,7 +130,7 @@ function cat(t, opts = {}) {
   const blush = over ? '' : `<ellipse cx="70" cy="168" rx="15" ry="9" fill="#E08A97" opacity="${0.75 * blushO}"/><ellipse cx="186" cy="168" rx="15" ry="9" fill="#E08A97" opacity="${0.75 * blushO}"/>`;
   const wd = ramp(t, 0.3, 0.9) * 10;           // whiskers droop
   const wo = lerp(0.85, 0.35, ramp(t, 0.3, 0.9));
-  const whiskers = over ? '' : `<g stroke="${mix(EYE, [0x8A, 0x92, 0x84], sick)}" stroke-width="2.4" stroke-linecap="round" opacity="${wo}">
+  const whiskers = over ? '' : `<g stroke="${mix(spec.whisker, [0x8A, 0x92, 0x84], sick)}" stroke-width="2.4" stroke-linecap="round" opacity="${wo}">
       <g transform="rotate(${wd} 74 162)"><line x1="74" y1="162" x2="44" y2="158.5"/><line x1="74" y1="170" x2="44" y2="173.5"/></g>
       <g transform="rotate(${-wd} 182 162)"><line x1="182" y1="162" x2="212" y2="158.5"/><line x1="182" y1="170" x2="212" y2="173.5"/></g></g>`;
 

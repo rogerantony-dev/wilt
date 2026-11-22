@@ -80,8 +80,11 @@ class WiltWidgetProvider : AppWidgetProvider() {
             // The cat rots with the minutes: fresh, wilting, mouldy, rotting,
             // nearly gone, and a skull once the limit is hit. Same bands and the
             // same worn top as the pill, flattened to one bitmap for RemoteViews.
-            val top = Closet.outfit(prefs)["top"]
-            views.setImageViewBitmap(R.id.widget_cat, CatFigureLayers.pillBitmap(context, CatDecay.stage(minutes, budget), top))
+            val outfit = Closet.outfit(prefs)
+            views.setImageViewBitmap(
+                R.id.widget_cat,
+                CatFigureLayers.pillBitmap(context, CatDecay.stage(minutes, budget), outfit["top"], outfit["fur"]),
+            )
 
             views.setTextViewText(R.id.widget_reels, "$reels${plural(reels, " reel", " reels")}")
             views.setTextViewText(R.id.widget_shorts, "$shorts${plural(shorts, " short", " shorts")}")

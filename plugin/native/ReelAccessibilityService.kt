@@ -1570,7 +1570,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (!overlayShown) buildPill()
         // Prefs are read on every render, so wearing something in the Closet
         // while Instagram is open shows on the next tick.
-        catView?.let { CatFigureLayers.bindPill(it, catStage(), Closet.outfit(prefs)["top"]) }
+        catView?.let { val o = Closet.outfit(prefs); CatFigureLayers.bindPill(it, catStage(), o["top"], o["fur"]) }
         pillLabel?.setTextColor(CatDecay.textColor(currentSeconds() / 60, limitMinutes()))
         pillLabel?.text = debugText ?: pillText(currentSeconds())
     }
@@ -1580,7 +1580,7 @@ class ReelAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!Settings.canDrawOverlays(this)) return
         if (!overlayShown) buildPill()
-        catView?.let { CatFigureLayers.bindPill(it, 6, Closet.outfit(prefs)["top"]) } // gone
+        catView?.let { val o = Closet.outfit(prefs); CatFigureLayers.bindPill(it, 6, o["top"], o["fur"]) } // gone
         pillLabel?.setTextColor(Color.parseColor("#38C786"))
         pillLabel?.text = "Blocked"
         if (bounceFeltPending) {
