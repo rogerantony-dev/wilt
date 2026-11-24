@@ -328,6 +328,18 @@ class ReelAccessibilityService : AccessibilityService() {
         Log.d(TAG, "$source: event=$eventPkg active=$activePkg")
         if (activePkg == instagramPackage || activePkg == youtubePackage) {
             lastTrackedPkg = activePkg
+            // Back in IG/YT after something covered it without changing its
+            // window state (the notification shade, a system dialog). Covering
+            // it counted as leaving, which took the pill and cover down and
+            // turned the content stream off, and IG/YT send no window-state
+            // change of their own on the way back. So nothing would bring the
+            // pill back: re-arm the stream and look at the screen now.
+            if (trackedEventsOn != true) {
+                mainHandler.removeCallbacks(settleCheck)
+                setTrackedEvents(true)
+                lastEventScanAt = System.currentTimeMillis()
+                rootInActiveWindow?.let { scanTracked(activePkg, it) }
+            }
             return
         }
         val paymentPkg = when {
@@ -411,7 +423,11 @@ class ReelAccessibilityService : AccessibilityService() {
         lastEventScanAt = now
 
         val root = rootInActiveWindow ?: return
+        scanTracked(pkg, root)
+    }
 
+    /** One detection pass over Instagram/YouTube: block it, or count it and show the pill. */
+    private fun scanTracked(pkg: String, root: AccessibilityNodeInfo) {
         // Block mode is latency-sensitive — the cat cover has to track the reel and
         // react the instant you change tabs — so it runs ONE fast detection pass per
         // platform (not the broader guilt detectors) and reacts to the event type.
